@@ -68,11 +68,11 @@ from scipy.sparse import bmat, diags
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "output" / "problem-3"
-AUDIT_DIR = OUT / "data"
+AUDIT_DIR = OUT / "audit"
 CASES_DIR = OUT / "cases"
-VALIDATION_DIR = OUT / "review"
-DELIVERY_DIR = OUT
-FIGURES_DIR = OUT / "image"
+VALIDATION_DIR = OUT / "validation"
+DELIVERY_DIR = OUT / "delivery"
+FIGURES_DIR = OUT / "figures"
 STOCHASTIC_DIR = OUT / "stochastic"
 sys.path.insert(0, str(ROOT / "src"))
 from common.fvm import build_geometry  # noqa: E402
@@ -117,7 +117,7 @@ def ensure_output_dirs():
     """Create the categorized output tree used by every problem-3 writer."""
     for folder in [OUT, AUDIT_DIR, CASES_DIR, VALIDATION_DIR, DELIVERY_DIR, FIGURES_DIR,
                    STOCHASTIC_DIR, STOCHASTIC_DIR / "data", STOCHASTIC_DIR / "ensemble",
-                   FIGURES_DIR / "stochastic", STOCHASTIC_DIR / "reports"]:
+                   STOCHASTIC_DIR / "figures", STOCHASTIC_DIR / "reports"]:
         folder.mkdir(parents=True, exist_ok=True)
 
 
@@ -168,8 +168,8 @@ def audit():
     dump_json(AUDIT_DIR / "input_audit.json", report)
     if not valid:
         raise ValueError("Input audit FAIL; do not proceed without user decision")
-    if not (VALIDATION_DIR / "protected_hashes_before.json").exists():
-        dump_json(VALIDATION_DIR / "protected_hashes_before.json", hashes())
+    if not (AUDIT_DIR / "protected_hashes_before.json").exists():
+        dump_json(AUDIT_DIR / "protected_hashes_before.json", hashes())
     np.savetxt(AUDIT_DIR / "observations_readonly_copy.csv", values, delimiter=",",
                header="time_s,T_degC,C_kg_kg", comments="", fmt="%.17g")
     return values, report
@@ -195,8 +195,12 @@ def plateau_fluctuation_stats(values, window_start=12600.0):
         residual = y - (slope * t + intercept)
         sigma = float(residual.std(ddof=1))
         acf1 = float(np.corrcoef(residual[:-1], residual[1:])[0, 1]) if sigma > 0 else 0.0
+        z_sample = (residual - residual.mean()) / sigma if sigma > 0 else residual * 0.0
         stats[key] = {"mean": float(y.mean()), "sigma": sigma, "acf1": acf1,
-                      "slope_per_s": float(slope)}
+                      "slope_per_s": float(slope),
+                      "kurtosis": float(((z_sample**4).mean())),
+                      "max_abs_z": float(np.abs(z_sample).max()),
+                      "z_sample": [float(v) for v in z_sample]}
     return stats
 
 
@@ -250,10 +254,19 @@ class Environment:
             else:
                 p = float(np.exp(-self.dt_env / self.tau_s))
             phi[key] = p
-            eps = rng.standard_normal(grid.size)
+            # Innovation bootstrap: resample the standardized observed residual
+            # so the fluctuation amplitude distribution (and its bounded,
+            # platykurtic extremes) matches the record instead of using a
+            # Gaussian tail that creates spurious spikes.
+            sample = np.asarray(self.stats[key]["z_sample"], dtype=float)
+            if sample.size and sample.std() > 0:
+                sample = (sample - sample.mean()) / sample.std()
+                eps = sample[rng.integers(0, sample.size, grid.size)]
+            else:
+                eps = rng.standard_normal(grid.size)
             z[j] = np.clip(lfilter([np.sqrt(1.0 - p**2)], [1.0, -p], eps), -4.0, 4.0)
         self.fluct = {"grid": grid, "z": z, "sigma": sigma, "phi": phi,
-                      "dt_env_s": self.dt_env}
+                      "dt_env_s": self.dt_env, "innovation": "observed-residual bootstrap"}
 
     def __call__(self, t):
         """Query the actual boundary at each internal implicit stage time."""
@@ -806,7 +819,7 @@ def regression(name):
 
 def verify_workbook():
     """Reopen all delivered cells and reconcile times, headers, values and formats."""
-    payload = json.loads((AUDIT_DIR / "workbook_payload.json").read_text(encoding="utf-8"))
+    payload = json.loads((DELIVERY_DIR / "workbook_payload.json").read_text(encoding="utf-8"))
     wb = openpyxl.load_workbook(DELIVERY_DIR / "result3.xlsx", read_only=False, data_only=False)
     ws = wb["Sheet1"]
     failures = []
@@ -995,7 +1008,7 @@ def run_verification(convergence=True, sensitivity=True):
     contiguous = numbers == list(range(1, len(numbers) + 1))
     report["formula_numbering"] = "PASS" if (contiguous and len(numbers) >= 65) else "FAIL"
     report["formula_count"] = len(numbers)
-    before = json.loads((VALIDATION_DIR / "protected_hashes_before.json").read_text(encoding="utf-8"))
+    before = json.loads((AUDIT_DIR / "protected_hashes_before.json").read_text(encoding="utf-8"))
     after = hashes()
     changed = [p for p, h in before.items() if after.get(p) != h]
     critical_prefixes = ("data/", "src/common/", "src/problem-1/")
@@ -1007,7 +1020,7 @@ def run_verification(convergence=True, sensitivity=True):
                                   "critical_model_inputs_changed": critical_changed,
                                   "external_change_note": "The task did not write previous-question files. Concurrent updates are retained and recorded; original baseline hashes are not replaced.",
                                   "excluded": "Office lock files, bytecode and output PNGs (repository instruction)"}
-    dump_json(VALIDATION_DIR / "protected_hashes_after.json", after)
+    dump_json(AUDIT_DIR / "protected_hashes_after.json", after)
     if critical_changed or report["formula_numbering"] == "FAIL":
         report["status"] = "FAIL"
     report["status_scope"] = "Executed problem-3 numerical requirements and immutable model inputs; external previous-question hash mismatches remain FAIL in protected_files"
@@ -1049,7 +1062,7 @@ def run_delivery():
         raise RuntimeError("Missing or duplicate regular/end sample")
     header = [input_report["template"]["rows"][0][0]] + [j / 10 for j in range(21)]
     payload = {"header": header, "rows": np.column_stack([times[1:], output[1:, 1]]).tolist()}
-    dump_json(AUDIT_DIR / "workbook_payload.json", payload)
+    dump_json(DELIVERY_DIR / "workbook_payload.json", payload)
     np.savetxt(DELIVERY_DIR / "moisture_60s_full_precision.csv", np.column_stack([times[1:], output[1:, 1]]),
                delimiter=",", comments="", fmt="%.17g",
                header="time_s," + ",".join(f"r_{j / 10:.1f}_cm" for j in range(21)))
@@ -1071,7 +1084,7 @@ def run_delivery():
     boundary_times = np.r_[values[:, 0], np.arange(14460, np.ceil(mean_meta["event"]["end_s"] / 60) * 60 + 1, 60)]
     boundary_data = np.array([[t, *Environment(values, "last")(t),
                               *Environment(values, "mean30")(t)] for t in boundary_times])
-    np.savetxt(AUDIT_DIR / "derived_boundaries.csv", boundary_data, delimiter=",", comments="", fmt="%.17g",
+    np.savetxt(DELIVERY_DIR / "derived_boundaries.csv", boundary_data, delimiter=",", comments="", fmt="%.17g",
                header="time_s,T_last_degC,C_last_kg_kg,T_mean30_degC,C_mean30_kg_kg")
     required_keys = {"space_convergence", "time_convergence", "empirical_error", "boundary_sensitivity"}
     missing_keys = sorted(required_keys - set(report))
@@ -1098,7 +1111,7 @@ def run_delivery():
         "",
         f"主解使用 N={meta['N']} 个径向区间、{meta['N'] + 1} 个节点，网格宽 {R / meta['N'] * 1e6:.4f} μm，SDIRK2 二阶隐式积分，时间倍率 {meta['factor']}。名义步长上限在观测区间为 {2 * meta['factor']:g} s，后段为 {30 * meta['factor']:g} s；启动阶段更小，实际最小/最大步长为 {meta['step_range_s'][0]:.8g}/{meta['step_range_s'][1]:.8g} s。60 s 仅是交付间隔。共接受 {main_steps} 步，拒绝 {meta['rejected_steps']} 步，阶段最大迭代次数 {meta['max_iterations']}。",
         "",
-        "物性、初边值、完整推导、离散矩阵和每项指标定义见 [模型与算法说明](../../src/problem-3/模型与算法说明.md) 的连续编号公式（1）至（65）。内部不舍入，温度持续求解至结束。",
+        "物性、初边值、完整推导、离散矩阵和每项指标定义见 `src/problem-3/模型与算法说明.md` 的连续编号公式（1）至（65）。内部不舍入，温度持续求解至结束。",
         "", "## 2. 全域事件与严格小于条件", "",
         "以下依据模型说明公式（30）、公式（31）、公式（51）至公式（53）。",
         "", "| 项目 | 实算值 |", "|---|---:|",
@@ -1130,7 +1143,7 @@ def run_delivery():
     for row in temporal:
         result_lines.append(f"| {row['factors'][0]}→{row['factors'][1]} | {row['all_saved_fields']['C_max_kg_kg']:.8e} | {row['all_saved_fields']['T_max_degC']:.8e} | {row['event_difference_s']:.8f} |")
     result_lines += ["",
-        f"时间细化覆盖启动、6 h 截面及末期；主解与更细时间解在 205800 s 的全场含水率最大差为 {report['near_end_common_time_fields']['time_factorhalf_to_quarter_full_C_max']:.8e} kg/kg。完整分时段误差和差异位置见 review/verification.json。空间收敛与时间收敛分别开展，短时独立 BDF 对照也没有替代这两项。",
+        f"时间细化覆盖启动、6 h 截面及末期；主解与更细时间解在 205800 s 的全场含水率最大差为 {report['near_end_common_time_fields']['time_factorhalf_to_quarter_full_C_max']:.8e} kg/kg。完整分时段误差和差异位置见 verification.json。空间收敛与时间收敛分别开展，短时独立 BDF 对照也没有替代这两项。",
         "",
         f"按公式（62），事件附近最大含水率的下降斜率约为 {echeck['slope_kg_kg_per_s']:.9e} (kg/kg)/s；5×10⁻⁵ kg/kg 的最大值误差可放大为约 {echeck['time_amplification_s_per_5e_5']:.2f} s 的时间误差。因此毫秒级根定位不能解释为总时长有毫秒精度。结合最细空间/时间差，取约 **{error['conservative_numeric_allowance_s']:.0f} s** 的经验数值误差尺度（取两种最细时长差之和的两倍，加定位及严格终点裕度后向上取整），不是严格误差界或真实工艺安全余量。四位小数是格式，不能保证每个末位舍入结果都相同。",
         "", "## 6. 平衡、边界与物理趋势", "",
@@ -1164,26 +1177,26 @@ def run_delivery():
         "", "## 8. 与第二问前 3 h 的衔接", "",
         "同一附录 3、同一初值、同一观测边界意味着连续模型相同。本问在前 3 h 每 60 s 的 21 点与第二问已有工作簿的只读快照比较。原审查报告针对后向 Euler 0.25 s；计算期间其他工作已更新第二问源码为启动 0.0025 s、后段 0.03125 s 的渐增步长，N 仍为 3200。已有工作簿也发生了外部更新，因此不推定其与某一版源码严格同批次，更不把它作为精确真值或续算状态。",
         "",
-        f"对照最大温度差为 {report['previous_problem_comparison']['T']['max_abs_difference']:.8e}°C，最大含水率差为 {report['previous_problem_comparison']['C']['max_abs_difference']:.8e} kg/kg。差异包含时间算法、空间分辨率以及旧表每格最多 5×10⁻⁵ 的舍入不确定性；不能单凭此差判定本问错误，也不能用两法同时间步一致来替代时间收敛。对照样本已保存在 review/problem2_comparison_snapshot.npz，对照工作簿快照 SHA-256 为 `{report['previous_problem_comparison']['source_workbook_sha256']}`。",
+        f"对照最大温度差为 {report['previous_problem_comparison']['T']['max_abs_difference']:.8e}°C，最大含水率差为 {report['previous_problem_comparison']['C']['max_abs_difference']:.8e} kg/kg。差异包含时间算法、空间分辨率以及旧表每格最多 5×10⁻⁵ 的舍入不确定性；不能单凭此差判定本问错误，也不能用两法同时间步一致来替代时间收敛。对照样本已保存在 problem2_comparison_snapshot.npz，对照工作簿快照 SHA-256 为 `{report['previous_problem_comparison']['source_workbook_sha256']}`。",
         "", "## 9. 工作簿与一致性", "",
         f"result3.xlsx 仅含 Sheet1。A1 保持原模板文本，B 至 V 为 0、0.1、…、2.0 cm；A 列包含 60 至 {int(times[-2])} s 的全部 {len(times)-2} 个规则时刻，并追加 {end:.12f} s 的实际结束行。因此共 {len(times)} 行（含表头）、22 列，含水率数据格 {21*(len(times)-1)} 个。最后一行不是 60 s 整数倍，是明确的例外。结果格均存数值并设置 0.0000，存储值没有预先舍入。",
         "",
-        "表 5、CSV、工作簿数据和结束时间均来自 cases/production.npz 的同一状态序列。数值验收通过后才生成导出载荷；导出后由 solve_problem3.py --workbook 重读全部格值、格式、表头、时间、距离及表 5 对应点。最终工作簿验证状态见 review/workbook_verification.json，未生成该文件时不能声称 Excel 已通过检查。",
+        "表 5、CSV、工作簿数据和结束时间均来自 production.npz 的同一状态序列。数值验收通过后才生成导出载荷；导出后由 solve_problem3.py --workbook 重读全部格值、格式、表头、时间、距离及表 5 对应点。最终工作簿验证状态见 workbook_verification.json，未生成该文件时不能声称 Excel 已通过检查。",
         "", "## 10. 验证状态及限制", "",
         "| 必要检查 | 状态 |", "|---|---|"]
     result_lines += [f"| {name} | {status} |" for name, status in report["checks"].items()]
     result_lines += ["", "| 未执行验证 | 状态 |", "|---|---|"]
     result_lines += [f"| {name} | {status} |" for name, status in report["skipped"].items()]
     result_lines += ["",
-        f"共审计 {report['protected_files']['checked']} 个保护文件。关键模型输入（题目、原始附件、公共函数及第一问源码）哈希检查为 {report['protected_files']['critical_model_inputs_status']}。完整保护文件哈希比较为 **{report['protected_files']['status']}**：运行期间观察到其他工作的第二问文件更新，本问未写入这些文件，也没有覆盖首次哈希基线。数值验收 PASS 不覆盖这项外部文件不一致。初次阻止导出的记录另存 review/verification_initial_scope_failure.json。按项目要求没有读取 output 下的 PNG；中文科学图保存在 image/，JPEG 核查图和工作簿预览保存在 image/previews/。公式编号检查为 {report['formula_numbering']}，连续编号 1 至 65。",
+        f"共审计 {report['protected_files']['checked']} 个保护文件。关键模型输入（题目、原始附件、公共函数及第一问源码）哈希检查为 {report['protected_files']['critical_model_inputs_status']}。完整保护文件哈希比较为 **{report['protected_files']['status']}**：运行期间观察到其他工作的第二问文件更新，本问未写入这些文件，也没有覆盖首次哈希基线。数值验收 PASS 不覆盖这项外部文件不一致。初次阻止导出的记录另存 verification_initial_scope_failure.json。按项目要求没有读取 output 下的 PNG；图像 QA 副本保存在本问 src 目录。公式编号检查为 {report['formula_numbering']}，连续编号 1 至 65。",
         "", "观察到变更的外部文件：" + "、".join(report['protected_files']['changed']) + "。",
         "",
         "模型仍采用有效传质势，未计相变潜热，质量与焓闭合不完整，忽略端面、收缩及材料不均匀性。没有计算确定的潜热缺口倍数，没有证明严格温度上界，也没有把端面面积比例当作模型误差。本次环境敏感性只是一个有明确窗口的对照，不是对未知未来环境的概率置信区间。",
         "", "## 11. 图表", "",
-        "![含水率轨迹与终点敏感性](image/drying_history.svg)", "",
-        "![径向全场与表面薄层](image/radial_profiles.svg)", "",
-        "![温度与环境](image/temperature_and_environment.svg)", "",
-        "![空间与时间收敛](image/convergence.svg)", ""]
+        "![含水率轨迹与终点敏感性](drying_history.svg)", "",
+        "![径向全场与表面薄层](radial_profiles.svg)", "",
+        "![温度与环境](temperature_and_environment.svg)", "",
+        "![空间与时间收敛](convergence.svg)", ""]
     (DELIVERY_DIR / "结果与验证.md").write_text("\n".join(result_lines), encoding="utf-8")
     try:
         from importlib.metadata import version

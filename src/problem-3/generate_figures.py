@@ -3,7 +3,7 @@
 Plotting is deliberately separated from the solver so that the numerical run
 does not need Matplotlib and so that figures can be regenerated from saved
 cases without recomputing.  All figure files (SVG plus QA raster) are written
-to ``output/problem-3/image``.
+to ``output/problem-3``.
 
 This program is tolerant of a trial run: the three production-based figures are
 always drawn, the mean-boundary curve is added when ``mean12800.npz`` exists,
@@ -31,30 +31,27 @@ from pathlib import Path
 
 import numpy as np
 
-from plot_style import configure_chinese
-
 from solve_problem3 import (CASES_DIR, FIGURES_DIR, OUT, ROOT, STOCHASTIC_DIR,
                             VALIDATION_DIR, Environment, audit, load_case)
 
 
 def _import_matplotlib():
-    """Import Matplotlib with an output-local config directory (lazy import)."""
+    """Import Matplotlib with an output-local config directory and CJK font."""
     import os
-    os.environ["MPLCONFIGDIR"] = str(VALIDATION_DIR / ".mplconfig")
+    os.environ["MPLCONFIGDIR"] = str(ROOT / "output/problem-3/.mplconfig")
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    plt.rcParams["font.family"] = "sans-serif"
+    plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
+    plt.rcParams["axes.unicode_minus"] = False
     return plt
 
 
 def save_figure(fig, name):
-    """Save Chinese SVG/PNG figures and a JPEG visual-check preview."""
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    previews = FIGURES_DIR / "previews"
-    previews.mkdir(exist_ok=True)
+    """Save an editable SVG and a QA raster, both inside output/problem-3."""
     fig.savefig(FIGURES_DIR / f"{name}.svg", bbox_inches="tight")
     fig.savefig(FIGURES_DIR / f"{name}.png", dpi=140, bbox_inches="tight")
-    fig.savefig(previews / f"{name}.jpg", dpi=115, bbox_inches="tight")
     plt = _import_matplotlib()
     plt.close(fig)
 
@@ -67,23 +64,25 @@ def figures(data, mean_data, report, values):
     skipped.  The three production figures are always produced.
     """
     plt = _import_matplotlib()
-    configure_chinese(plt)
+    plt.rcParams.update({"font.family": "sans-serif", "font.size": 10,
+                         "axes.spines.top": False, "axes.spines.right": False,
+                         "svg.fonttype": "none"})
     made = []
     t = data["times"] / 3600
     fig, ax = plt.subplots(1, 2, figsize=(11.4, 4.1), layout="constrained")
-    ax[0].plot(t, data["outputs"][:, 1, 0], label="中心／全域最大值", color="#176c9b")
-    ax[0].plot(data["history"][:, 0] / 3600, data["history"][:, 3], label="体积加权平均值", color="#aa662e")
+    ax[0].plot(t, data["outputs"][:, 1, 0], label="中心/全域最大值", color="#176c9b")
+    ax[0].plot(data["history"][:, 0] / 3600, data["history"][:, 3], label="体积加权平均", color="#aa662e")
     ax[0].plot(t, data["outputs"][:, 1, -1], label="表面", color="#247c56")
-    ax[0].axhline(.15, color="#9f3546", linestyle="--", label="达标阈值 0.15")
-    ax[0].set(xlabel="烘干时间（小时）", ylabel="干基含水率（kg/kg）", title="含水率变化过程")
+    ax[0].axhline(.15, color="#9f3546", linestyle="--", label="阈值 0.15")
+    ax[0].set(xlabel="自烘干开始的时间 (h)", ylabel="干基含水率 (kg/kg)", title="含水率轨迹")
     ax[0].legend(fontsize=8)
-    ax[1].plot(t, data["outputs"][:, 1, 0], color="#176c9b", label="观测末值延拓")
+    ax[1].plot(t, data["outputs"][:, 1, 0], color="#176c9b", label="末值边界")
     if mean_data is not None:
         ax[1].plot(mean_data["times"] / 3600, mean_data["outputs"][:, 1, 0],
-                   color="#a45178", label="末段30分钟均值延拓")
+                   color="#a45178", label="末 30 min 均值边界")
     ax[1].axhline(.15, color="#9f3546", linestyle="--")
-    ax[1].set(xlim=(55.5, 58), ylim=(.148, .153), xlabel="烘干时间（小时）",
-              ylabel="全域最大含水率（kg/kg）", title="结束时刻与边界敏感性")
+    ax[1].set(xlim=(55.5, 58), ylim=(.148, .153), xlabel="自烘干开始的时间 (h)",
+              ylabel="最大含水率 (kg/kg)", title="终点与边界敏感性")
     ax[1].legend(fontsize=8)
     for a in ax:
         a.grid(alpha=.2)
@@ -95,11 +94,11 @@ def figures(data, mean_data, report, values):
     for t_value, color in zip(choose, ["#176c9b", "#aa662e", "#247c56", "#a45178", "#536d35", "#444444", "#c23b34"]):
         idx = int(np.argmin(abs(data["full_times"] - t_value)))
         C = data["full_states"][idx, 1]
-        label = f"{t_value / 3600:.2f} 小时" if t_value == choose[-1] else f"{t_value / 3600:.0f} 小时"
+        label = f"{t_value / 3600:.2f} h" if t_value == choose[-1] else f"{t_value / 3600:.0f} h"
         for a in ax:
             a.plot(data["r"] * 100, C, color=color, label=label)
-    ax[0].set(xlabel="径向距离（cm）", ylabel="含水率（kg/kg）", title="径向含水率分布", xlim=(0, 2))
-    ax[1].set(xlabel="径向距离（cm）", ylabel="含水率（kg/kg）", title="表面附近含水率分布", xlim=(1.97, 2), ylim=(.045, .21))
+    ax[0].set(xlabel="半径 (cm)", ylabel="含水率 (kg/kg)", title="完整径向场", xlim=(0, 2))
+    ax[1].set(xlabel="半径 (cm)", ylabel="含水率 (kg/kg)", title="表面薄层放大", xlim=(1.97, 2), ylim=(.045, .21))
     ax[0].legend(ncol=2, fontsize=8)
     for a in ax:
         a.grid(alpha=.2)
@@ -109,17 +108,17 @@ def figures(data, mean_data, report, values):
 
     fig, ax = plt.subplots(1, 2, figsize=(11.4, 4.1), layout="constrained")
     selected = t <= 8
-    ax[0].plot(t[selected], data["outputs"][selected, 0, 0], label="药材中心", color="#176c9b")
-    ax[0].plot(t[selected], data["outputs"][selected, 0, -1], label="药材表面", color="#247c56")
+    ax[0].plot(t[selected], data["outputs"][selected, 0, 0], label="材料中心", color="#176c9b")
+    ax[0].plot(t[selected], data["outputs"][selected, 0, -1], label="材料表面", color="#247c56")
     boundary_t = np.r_[values[:, 0], 8 * 3600]
-    ax[0].plot(boundary_t / 3600, np.r_[values[:, 1], values[-1, 1]], label="烘房温度（末值延拓）", color="#aa662e", linewidth=1)
-    ax[0].set(xlabel="时间（小时）", ylabel="温度（°C）", title="药材与烘房温度变化")
+    ax[0].plot(boundary_t / 3600, np.r_[values[:, 1], values[-1, 1]], label="空气（末值延拓）", color="#aa662e", linewidth=1)
+    ax[0].set(xlabel="时间 (h)", ylabel="温度 (°C)", title="温度全程参与求解")
     ax[0].legend(fontsize=8)
-    ax[1].plot(values[:, 0] / 3600, values[:, 2], color="#444444", label="环境水分浓度观测")
-    for mode, color in [("last", "#176c9b"), ("mean30", "#a45178")]:
+    ax[1].plot(values[:, 0] / 3600, values[:, 2], color="#444444", label="实测空气水分浓度")
+    for mode, color, name in [("last", "#176c9b", "末值"), ("mean30", "#a45178", "末 30 min 均值")]:
         env = Environment(values, mode)
-        ax[1].plot([4, 8], [env.tail[1], env.tail[1]], color=color, label={"last": "观测末值延拓", "mean30": "末段均值延拓"}[mode])
-    ax[1].set(xlabel="时间（小时）", ylabel="环境水分浓度（kg/kg）", title="环境水分浓度与延拓方案")
+        ax[1].plot([4, 8], [env.tail[1], env.tail[1]], color=color, label=f"延拓：{name}")
+    ax[1].set(xlabel="时间 (h)", ylabel="空气水分浓度 (kg/kg)", title="观测区间保持不变")
     ax[1].legend(fontsize=8)
     for a in ax:
         a.axvline(4, color="#888888", linestyle=":")
@@ -131,9 +130,9 @@ def figures(data, mean_data, report, values):
     if spatial and temporal:
         fig, ax = plt.subplots(1, 2, figsize=(11.4, 4.1), layout="constrained")
         ax[0].loglog([v["fine_N"] for v in spatial], [abs(v["event_difference_s"]) for v in spatial], "o-", color="#176c9b")
-        ax[0].set(xlabel="加密网格径向区间数 N", ylabel="临界时间变化（秒）", title="空间加密（时间策略固定）")
+        ax[0].set(xlabel="细网格区间数 N", ylabel="临界时间变化 (s)", title="空间加密（固定时间策略）")
         ax[1].loglog([v["factors"][1] for v in temporal], [v["all_saved_fields"]["C_max_kg_kg"] for v in temporal], "o-", color="#a45178")
-        ax[1].set(xlabel="加密时间步倍率", ylabel="全场含水率最大差（kg/kg）", title="时间加密（N=12800）")
+        ax[1].set(xlabel="细网格时间倍率", ylabel="全场含水率差 (kg/kg)", title="时间加密（固定 N=12800）")
         for a in ax:
             a.grid(which="both", alpha=.2)
         save_figure(fig, "convergence")
@@ -151,7 +150,9 @@ def stochastic_air_figures(values, seeds, tau_s, sigma_scale, end_s, dt_env=60.0
     ``temperature_and_environment_seed{seed}``.
     """
     plt = _import_matplotlib()
-    configure_chinese(plt)
+    plt.rcParams.update({"font.family": "sans-serif", "font.size": 10,
+                         "axes.spines.top": False, "axes.spines.right": False,
+                         "svg.fonttype": "none"})
     grid = np.arange(0.0, end_s + dt_env, dt_env)
     mean = values[values[:, 0] >= 12600, 1:].mean(axis=0)
     last = values[-1, 1:]
@@ -162,22 +163,22 @@ def stochastic_air_figures(values, seeds, tau_s, sigma_scale, end_s, dt_env=60.0
         ambient = np.array([env(t) for t in grid])
         fig, ax = plt.subplots(1, 2, figsize=(11.4, 4.1), layout="constrained")
         for a in ax:
-            a.axvspan(0, 4, color="#9f3546", alpha=.07, label="观测区间（0～4小时）")
+            a.axvspan(0, 4, color="#9f3546", alpha=.07, label="观测段 0–4 h")
             a.axvline(4, color="#888888", linestyle=":", linewidth=1)
             a.grid(alpha=.2)
         ax[0].plot(grid / 3600, ambient[:, 0], color="#176c9b", linewidth=1.0,
-                   label="烘房温度")
-        ax[0].axhline(mean[0], color="#aa662e", linestyle="--", linewidth=1, label="末段30分钟均值")
-        ax[0].axhline(last[0], color="#247c56", linestyle=":", linewidth=1, label="观测末值")
-        ax[0].set(xlabel="烘干时间（小时）", ylabel="烘房温度（°C）",
-                  title=f"种子{seed}：烘房温度")
+                   label="空气温度")
+        ax[0].axhline(mean[0], color="#aa662e", linestyle="--", linewidth=1, label="末 30 min 均值")
+        ax[0].axhline(last[0], color="#247c56", linestyle=":", linewidth=1, label="末值")
+        ax[0].set(xlabel="自烘干开始的时间 (h)", ylabel="空气温度 (°C)",
+                  title=f"随机种子 {seed}：空气温度")
         ax[0].legend(fontsize=8)
         ax[1].plot(grid / 3600, ambient[:, 1], color="#247c56", linewidth=1.0,
-                   label="环境水分浓度")
-        ax[1].axhline(mean[1], color="#aa662e", linestyle="--", linewidth=1, label="末段30分钟均值")
-        ax[1].axhline(last[1], color="#176c9b", linestyle=":", linewidth=1, label="观测末值")
-        ax[1].set(xlabel="烘干时间（小时）", ylabel="环境水分浓度（kg/kg）",
-                  title=f"种子{seed}：环境水分浓度")
+                   label="空气水分浓度")
+        ax[1].axhline(mean[1], color="#aa662e", linestyle="--", linewidth=1, label="末 30 min 均值")
+        ax[1].axhline(last[1], color="#176c9b", linestyle=":", linewidth=1, label="末值")
+        ax[1].set(xlabel="自烘干开始的时间 (h)", ylabel="空气水分浓度 (kg/kg)",
+                  title=f"随机种子 {seed}：空气水分浓度")
         ax[1].legend(fontsize=8)
         name = f"temperature_and_environment_seed{seed}"
         save_figure(fig, name)

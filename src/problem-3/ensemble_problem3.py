@@ -23,24 +23,24 @@ from pathlib import Path
 
 import numpy as np
 
-from plot_style import configure_chinese
-
-from solve_problem3 import (OUT, FIGURES_DIR, VALIDATION_DIR, STOCHASTIC_DIR, Environment, audit, dump_json,
+from solve_problem3 import (OUT, STOCHASTIC_DIR, Environment, audit, dump_json,
                             plateau_fluctuation_stats, simulate)
 
 DATA_DIR = STOCHASTIC_DIR / "data"
 ENSEMBLE_DIR = STOCHASTIC_DIR / "ensemble"
-FIG_DIR = FIGURES_DIR / "stochastic"
+FIG_DIR = STOCHASTIC_DIR / "figures"
 REPORT_DIR = STOCHASTIC_DIR / "reports"
 
 
 def _import_matplotlib():
-    """Import Matplotlib with an output-local config directory."""
-    os.environ["MPLCONFIGDIR"] = str(VALIDATION_DIR / ".mplconfig")
+    """Import Matplotlib with an output-local config directory and CJK font."""
+    os.environ["MPLCONFIGDIR"] = str(OUT / ".mplconfig")
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    configure_chinese(plt)
+    plt.rcParams["font.family"] = "sans-serif"
+    plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
+    plt.rcParams["axes.unicode_minus"] = False
     return plt
 
 
@@ -64,15 +64,15 @@ def plot_plateau_paths(values, args, seeds):
     for seed in seeds:
         env = Environment(values, "fluct", seed=seed, tau_s=args.tau, sigma_scale=args.sigma_scale)
         ambient = np.array([env(s) for s in t])
-        ax[0].plot(t / 3600, ambient[:, 0], linewidth=.9, label=f"种子{seed}")
-        ax[1].plot(t / 3600, ambient[:, 1], linewidth=.9, label=f"种子{seed}")
-    for a, label, level in [(ax[0], "烘房温度（°C）", tail_mean[0]),
-                            (ax[1], "环境水分浓度（kg/kg）", tail_mean[1])]:
+        ax[0].plot(t / 3600, ambient[:, 0], linewidth=.9, label=f"种子 {seed}")
+        ax[1].plot(t / 3600, ambient[:, 1], linewidth=.9, label=f"种子 {seed}")
+    for a, label, level in [(ax[0], "空气温度 (°C)", tail_mean[0]),
+                            (ax[1], "空气水分浓度 (kg/kg)", tail_mean[1])]:
         a.axhline(level, color="#444444", linestyle="--", linewidth=1, label="均值")
-        a.set(xlabel="烘干时间（小时）", ylabel=label)
+        a.set(xlabel="自烘干开始的时间 (h)", ylabel=label)
         a.grid(alpha=.2)
-    ax[0].set_title("后续环境温度随机波动")
-    ax[1].set_title("后续环境水分浓度随机波动")
+    ax[0].set_title("随机平台期：温度")
+    ax[1].set_title("随机平台期：水分浓度")
     ax[0].legend(fontsize=7, ncol=2)
     fig.savefig(FIG_DIR / "plateau_paths.svg", bbox_inches="tight")
     fig.savefig(FIG_DIR / "plateau_paths.png", dpi=140, bbox_inches="tight")
@@ -84,13 +84,13 @@ def plot_distribution(hours, reference_hours, args):
     plt = _import_matplotlib()
     fig, ax = plt.subplots(figsize=(7.2, 4.4), layout="constrained")
     ax.hist(hours, bins=min(20, max(4, len(hours))), color="#176c9b", alpha=.75,
-            edgecolor="white", label="随机样本")
-    ax.axvline(hours.mean(), color="#c23b34", linewidth=2, label=f"均值{hours.mean():.3f}小时")
+            edgecolor="white", label="随机集合")
+    ax.axvline(hours.mean(), color="#c23b34", linewidth=2, label=f"集合均值 {hours.mean():.3f} h")
     if reference_hours is not None:
         ax.axvline(reference_hours, color="#247c56", linestyle="--", linewidth=2,
-                   label=f"确定性参考{reference_hours:.3f}小时")
-    ax.set(xlabel="临界烘干时间（小时）", ylabel="样本数",
-           title=f"临界烘干时间分布（{len(hours)}个样本）")
+                   label=f"确定性参考 {reference_hours:.3f} h")
+    ax.set(xlabel="临界烘干时间 (h)", ylabel="频数",
+           title=f"临界时间分布（{len(hours)} 个实现）")
     ax.grid(alpha=.2)
     ax.legend(fontsize=8)
     fig.savefig(FIG_DIR / "critical_time_distribution.svg", bbox_inches="tight")
@@ -126,8 +126,9 @@ def main():
         "fluctuation_stats": stats, "tau_s": args.tau, "dt_env_s": 60.0,
         "ar1_phi": ar1_phi, "sigma_scale": args.sigma_scale,
         "model": "T_inf(t)=mean_T+sigma_T*z_T(t); C_inf(t)=mean_C+sigma_C*z_C(t); "
-                 "z is a clipped AR(1) with unit variance; by default phi is the observed "
-                 "lag-1 autocorrelation at the 60 s cadence, matching the measured frequency",
+                 "z is a clipped AR(1) with unit variance; phi is the observed lag-1 "
+                 "autocorrelation at the 60 s cadence and the innovations are bootstrapped "
+                 "from the standardized observed residual, matching both frequency and amplitude",
         "detrending": "linear fit over the last observed 30 min"})
 
     started = time.perf_counter()
@@ -200,7 +201,10 @@ def main():
         f"- 一阶自相关：温度 {stats['T']['acf1']:.6f}，水分 {stats['C']['acf1']:.6f}。",
         f"- AR(1) 系数 phi：温度 {ar1_phi['T'] if ar1_phi['T'] is not None else '由 tau 给出'}，"
         f"水分 {ar1_phi['C'] if ar1_phi['C'] is not None else '由 tau 给出'}；"
-        f"环境网格 60 s，波动放大系数 {args.sigma_scale:g}，标准差截断到 ±4。", "",
+        f"环境网格 60 s，波动放大系数 {args.sigma_scale:g}，标准差截断到 ±4。",
+        f"- 残差幅度：峰度 温度 {stats['T']['kurtosis']:.2f}、水分 {stats['C']['kurtosis']:.2f}；"
+        f"最大 |z| 温度 {stats['T']['max_abs_z']:.2f}、水分 {stats['C']['max_abs_z']:.2f}。"
+        f"新息按该经验分布自助重采样，避免高斯尾尖峰。", "",
         "## 结果", "",
         f"- 临界时间均值 {summary['critical_time_h']['mean']:.6f} h，标准差 {summary['critical_time_h']['std']:.6f} h。",
         f"- 5%/50%/95% 分位：{summary['critical_time_h']['p05']:.6f} / "
@@ -214,7 +218,7 @@ def main():
         "- `data/tail_model.json`：平台期均值、残差标准差、自相关与模型说明。",
         "- `ensemble/realizations.csv`、`ensemble/realizations.npz`：逐实现结果。",
         "- `ensemble/summary.json`：集合统计。",
-        "- `image/stochastic/plateau_paths.svg|png`、`image/stochastic/critical_time_distribution.svg|png`：样本路径与临界时间分布。", "",
+        "- `figures/plateau_paths.svg|png`、`figures/critical_time_distribution.svg|png`：样本路径与临界时间分布。", "",
         "## 限制", "",
         "AR(1) 参数由 4 h 观测的末段估计，不能替代对真实烘房长期波动的实测标定；"
         "该集合只描述给定波动模型下的时长分布，不含模型结构误差，也不构成工艺安全余量。"]

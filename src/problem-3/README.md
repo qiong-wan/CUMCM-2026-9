@@ -1,82 +1,111 @@
 # 第三问复现与交付
 
-目录导航：先看[文件分类与用途](文件分类与用途.md)，模型与代码问题见[代码审查报告](问题3_代码审查报告_GPT.md)；只查看计算成果可从[输出目录索引](../../output/problem-3/README.md)进入。
-
-全部计算从均匀初值 28°C、2.55 kg/kg 重新开始，附录 3 局部物性、固定半径 0.02 m、长度 0.25 m。主方案在 14400 s 后同时固定末次温度和环境水分浓度，均值情景仅替换观测区间之后的边界。详细推导见[模型与算法说明](模型与算法说明.md)，计算结果和全部证据见 `../../output/problem-3/结果与验证.md`。
-
-当前新增的合并入口及随机模型仍存在审查报告列出的未解决问题，下列原流程命令不代表新版本已完成整套验收。本次仅统一图中文字和输出路径；审查报告保留原审查时的证据，不表示其中其余问题已经修复。
+全部计算从均匀初值 28°C、2.55 kg/kg 重新开始，附录 3 局部物性、固定半径 0.02 m、长度 0.25 m。主方案在 14400 s 后同时固定末次温度和环境水分浓度，均值情景仅替换观测区间之后的边界；另有一个独立的平台期随机波动集合（AR(1)）用于量化环境波动对临界时间的影响。详细推导见[模型与算法说明](模型与算法说明.md)（连续编号公式 1–74），计算结果和全部证据见 `output/problem-3/delivery/结果与验证.md`。
 
 ## 运行环境
 
-Python 3.11+，NumPy、SciPy、openpyxl（只读输入与复核）、Matplotlib；具体执行版本记录在 `output/problem-3/data/run_environment.json`。工作簿由 Node.js 的 `@oai/artifact-tool` 从原模板导入、扩展、导出；本机已经建立仅位于第三问目录中的 `node_modules` 联接，指向 Codex 提供的运行库，不修改依赖目录。
+Python 3.11+，NumPy、SciPy、openpyxl（只读输入与复核）、Matplotlib；具体执行版本记录在 `output/problem-3/audit/run_environment.json`。工作簿由 Node.js 的 `@oai/artifact-tool` 从原模板导入、扩展、导出；`node_modules` 联接仅位于第三问目录，不修改依赖目录。
 
-在 `D:/CUMCM/Solution` 运行完整流程：
+## 运行
 
-```powershell
-python -B -X utf8 src/problem-3/run_all.py
-```
-
-当前 Codex 附带的 Python 可显式调用：
+在 `D:/CUMCM/Solution` 运行完整流程（单文件入口，推荐）：
 
 ```powershell
-& 'C:/Users/lenovo/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe' -B -X utf8 src/problem-3/run_all.py
+python -B -X utf8 src/problem-3/solve_problem3.py --all
 ```
-
-流程会重算全部必要空间序列、时间序列和均值环境情景，依次执行验证、表 5/图表准备、XLSX 导出及全量重读核查。任何必要验证失败均返回非零状态。不是 72 h 到时即结束，事件之前未达标会自动继续延长。`--resume` 仅适用于已确认代码与输入不变的中断续跑，明确复用已有命名案例；默认不复用。
 
 可拆开执行（不要运行前两问入口）：
 
 ```powershell
 python -B -X utf8 src/problem-3/solve_problem3.py --audit
 python -B -X utf8 src/problem-3/solve_problem3.py --case production --n 12800 --factor 0.5
-python -B -X utf8 src/problem-3/verify_problem3.py
-python -B -X utf8 src/problem-3/deliver_problem3.py
+python -B -X utf8 src/problem-3/solve_problem3.py --verify
+python -B -X utf8 src/problem-3/solve_problem3.py --deliver
+python -B -X utf8 src/problem-3/generate_figures.py
 node src/problem-3/build_workbook.mjs
-python -B -X utf8 src/problem-3/verify_problem3.py --workbook
+python -B -X utf8 src/problem-3/solve_problem3.py --workbook
 ```
 
-其中验证入口要求其余必要对照已经完成，不能只跑单个 production 后跳过收敛验证。若单个阶段在当前 Python 环境缺包，使用上述附带环境。工作簿工具支持通过 `NODE_EXE` 和 `ARTIFACT_NODE_MODULES` 指定已有安装位置，不自动联网安装依赖。
+试运行加速（`--all` 的开关，按依赖级联）：
+
+```powershell
+# 只求解主方案并绘图，跳过收敛/敏感性/验证/交付/工作簿
+python -B -X utf8 src/problem-3/solve_problem3.py --all --no-convergence --no-sensitivity
+# 粗网格快速冒烟（不用于交付）：N=400、倍率 1
+python -B -X utf8 src/problem-3/solve_problem3.py --all --no-convergence --no-sensitivity --prod-n 400 --prod-factor 1
+# 已有多案例文件时，只重跑验证/交付/绘图/工作簿
+python -B -X utf8 src/problem-3/solve_problem3.py --all --resume
+# 以随机平台（fluct）运行完整流程；同一随机种子用于全部收敛案例
+python -B -X utf8 src/problem-3/solve_problem3.py --all --prod-mode fluct --prod-seed 0
+```
+
+| 开关 | 作用 |
+|---|---|
+| `--no-convergence` | 跳过空间/时间加密案例（最耗时），并级联关闭验证、交付、工作簿 |
+| `--no-sensitivity` | 跳过均值边界案例 |
+| `--no-verify` / `--no-deliver` / `--no-figures` / `--no-workbook` | 逐级关闭验证、交付、绘图、工作簿 |
+| `--prod-n` / `--prod-factor` | 试运行主解的网格数与时间倍率（默认 12800 / 0.5） |
+| `--prod-mode` / `--prod-seed` | 主解族平台模型（`last`/`mean30`/`fluct`）与随机种子 |
+| `--resume` | 复用已存在的命名案例，只重跑后续阶段 |
+
+所有求解阶段都输出进度条（`t/72h`、步数、耗时、ETA）；重定向到文件时按行输出。
+
+注意：粗网格试运行的物理阈值（如边界重构）通常不达标，这是预期的；试运行结果不能作为交付。
+
+平台期随机波动集合：
+
+```powershell
+python -B -X utf8 src/problem-3/ensemble_problem3.py --n 400 --factor 1 --members 8
+python -B -X utf8 src/problem-3/ensemble_problem3.py --n 12800 --factor 0.5 --members 16 --tau 1800
+```
+
+单案例随机边界（用于检查模型本身）：
+
+```powershell
+python -B -X utf8 src/problem-3/solve_problem3.py --case fluct_demo --n 800 --factor 1 --mode fluct --seed 3
+```
 
 ## 文件职责
 
 | 文件 | 职责 |
 |---|---|
-| `solve_problem3.py` | 只读审计、局部物性、圆柱有限体积、SDIRK2/Picard、独立累计通量与严格终点 |
-| `verify_problem3.py` | 空间、时间、事件、边界、短时独立 BDF、故障反例、旧结果衔接、保护文件哈希、XLSX 全量核查 |
-| `deliver_problem3.py` | 从通过验收的 production 解生成表 5、未舍入载荷、4 幅科学图表、计算结果报告 |
-| `build_workbook.mjs` | 保留 Sheet1/A1，扩展为 21 个距离列，保持数值并设置四位小数显示 |
-| `run_all.py` | 串联上述流程，失败立即退出 |
-| `generate_figures.py` | 独立读取保存案例，重新生成中文图像 |
-| `ensemble_problem3.py` | 随机环境试算及中文样本图，保留现有计算逻辑 |
-| `plot_style.py` | 统一中文字体、负号及 SVG 字形嵌入 |
-| `review/verify_presentation.py` | 核心代码与数值文件哈希、绘图数据和中文字形回归检查 |
+| `solve_problem3.py` | **单一入口**：只读审计、局部物性、圆柱有限体积、SDIRK2/Picard、独立累计通量与严格终点；环境尾段支持 `last`/`mean30`/`fluct`；内置验证（`--verify`）、交付（`--deliver`）、工作簿重读（`--workbook`）与串联（`--all`）；不含 Matplotlib |
+| `generate_figures.py` | **独立绘图**：从已保存案例与 `verification.json` 生成 4 幅主图（SVG+PNG）到 `output/problem-3/figures`；无验证数据时仍绘 3 幅（`--require-full` 强制完整）；若存在随机集合数据，再为每个种子生成一幅 `temperature_and_environment_seed{N}`（空气温度/水分，`--no-stochastic` 可关闭） |
+| `ensemble_problem3.py` | **随机集合**：平台期 AR(1) 波动的 Monte Carlo，统计临界时间分布并写入 `output/problem-3/stochastic` |
+| `build_workbook.mjs` | 从 `delivery/workbook_payload.json` 导出 `delivery/result3.xlsx` 并保留 Sheet1/A1、21 个距离列与四位小数显示 |
+| `模型与算法说明.md` | 连续编号公式 1–74、完整模型、推导、参数、假设、随机平台模型与指标 |
 
-本目录按前两问约定保存代码、模型推导、审查文档、运行说明、分类索引及必要配置。[视觉审查记录](review/visual_verification.md)与审查脚本放在 `review/`。计算结果、原始测试记录和图像放在 `output/problem-3/`；科学图统一位于其 `image/` 子目录，工作簿预览及直接由 Figure 生成的中文 JPEG 核查图位于 `image/previews/`。
+## 输出目录结构
+
+`output/problem-3/` 按用途分类，脚本读写同一布局：
+
+```
+audit/        input_audit.json, observations_readonly_copy.csv,
+              protected_hashes_before/after.json, run_environment.json
+cases/        {name}.npz, {name}.json, {name}_event_seed.npz（space*/production/
+              time12800quarter/mean12800 及随机单案例）
+validation/   verification.json, workbook_verification.json,
+              near_end_common_fields.npz, problem2_comparison_snapshot.npz
+delivery/     result3.xlsx, workbook_payload.json, table5.md, table5_moisture.csv,
+              moisture_60s_full_precision.csv, derived_boundaries.csv,
+              结果与验证.md, artifact_inspection.txt
+figures/      drying_history / radial_profiles / temperature_and_environment /
+              convergence 的 .svg 与 .png
+stochastic/   data/, ensemble/, figures/, reports/（平台期随机模型）
+```
 
 ## 主要交付文件
 
-- `output/problem-3/result3.xlsx`：唯一的提交工作簿，仅水分浓度 Sheet1；单位秒、cm、kg/kg；末尾包含明确的非规则实际结束行。
-- `output/problem-3/table5.md`、`table5_moisture.csv`：每 6 h 加结束行，后者保留完整精度。
-- `output/problem-3/结果与验证.md`、`output/problem-3/review/verification.json`：结论、误差、边界敏感性与实际执行状态。
-- `output/problem-3/review/workbook_verification.json`：全部 Excel 格值/格式/时间/表头和表 5 一致性复核。
-- `output/problem-3/cases/production.npz`：同一主解的未舍入状态、输出数组、完整检查截面和累计诊断。
-- `output/problem-3/cases/production_event_seed.npz`：事件前未舍入完整状态，支持局部重算。
-- `output/problem-3/data/derived_boundaries.csv`、`output/problem-3/data/input_audit.json`：环境派生结果和原始输入审计。
-- `output/problem-3/image/` 中的 `drying_history`、`radial_profiles`、`temperature_and_environment`、`convergence`（SVG/PNG）：科学图表。
+- `delivery/result3.xlsx`：唯一提交工作簿，仅水分浓度 Sheet1；单位秒、cm、kg/kg；末尾含非规则实际结束行。
+- `delivery/table5.md`、`delivery/table5_moisture.csv`：每 6 h 加结束行，后者保留完整精度。
+- `delivery/结果与验证.md`、`validation/verification.json`：结论、误差、边界敏感性与实际执行状态。
+- `validation/workbook_verification.json`：全部 Excel 格值/格式/时间/表头和表 5 一致性复核。
+- `cases/production.npz`、`cases/production_event_seed.npz`：主解未舍入状态与事件前完整状态。
+- `delivery/derived_boundaries.csv`、`audit/input_audit.json`：环境派生结果和原始输入审计。
+- `figures/*.svg`、`figures/*.png`：科学图表；其中 `temperature_and_environment_seed{N}` 为各随机种子的平台期空气温度/水分随时间曲线（观测段 0–4 h 加 AR(1) 波动段）。
+- `stochastic/`：平台期随机波动的参数、逐实现结果、统计、图与报告。
 
-`output/problem-3/cases/` 下其余必要的 `space*.npz/json`、`time12800quarter*.npz/json`、`mean12800*.npz/json` 为独立运行证据。`output/problem-3/image/previews/` 保存此前视觉核查使用的图像，后续导出也写入该目录；没有重新读取 output 下的 PNG。已清理不参与正式流程的 `time6400half`、`mean6400` 早期案例、题目临时截图和冗余诊断缓存。原始题目、附件、模板、前两问、公共模块不写回。`production` 对应正式主解，`space12800` 是相同空间网格但时间步较粗的研究案例，两者不能混用。
-
-## 仅重新绘图与整理验证
-
-```powershell
-python -B -X utf8 src/problem-3/generate_figures.py --require-full --no-stochastic
-python -B -X utf8 src/problem-3/review/verify_presentation.py
-python -B -X utf8 src/problem-3/review/verify_layout.py
-```
-
-独立绘图从 `cases/`、`data/`、`review/` 读取已有解和验证记录，不重算烘干过程。省略 `--no-stochastic` 时沿用原有规则，仅在实际随机数据存在时追加每个种子的图。中文字体依次查找 Microsoft YaHei、SimHei、Noto Sans CJK SC、Source Han Sans SC；缺少可用字体时明确报错。SVG 嵌入字形，换机查看不依赖本机字体安装。
-
-本次检查基线位于 `output/problem-3/review/presentation_before.json`；`--capture` 仅用于建立新的整理前基线，已有基线会拒绝覆盖。具体执行范围见 [中文图与目录整理验证](review/中文图与目录整理验证.md)。
+原始题目、附件、模板、前两问、公共模块不写回。`production` 对应正式主解，`space12800` 是相同空间网格但时间步较粗的研究案例，两者不能混用。
 
 ## NPZ 数组约定
 
