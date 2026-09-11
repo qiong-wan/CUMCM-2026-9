@@ -1,0 +1,158 @@
+{
+  "font": "Microsoft YaHei",
+  "dpi": 300,
+  "source_sha256": {
+    "D:\\CUMCM\\Solution\\data\\附件1.xlsx": "7ef32870abeef420b89560b2530ff60dfe4255917805151d89988d0311af9dd7",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\result2.xlsx": "e1a0cbf40e6491be1d338029fd5a3a9e925e827b8c7fb3976a0d61a83452d3a8",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\verification.txt": "398c204bd3207cee22fd340a54f129ac6eddab38f549c1f29f8df1c1189f0d00"
+  },
+  "source_files_unchanged": true,
+  "initial_state_added_for_plotting": true,
+  "time_range_s": [
+    0,
+    10800
+  ],
+  "ambient_observations": 181,
+  "field_shape_with_initial_state": [
+    10801,
+    21
+  ],
+  "temperature_range_C": [
+    28.0,
+    49.9664
+  ],
+  "moisture_range_kg_kg": [
+    1.0081,
+    2.55
+  ],
+  "figures": [
+    {
+      "name": "fig1_ambient_conditions",
+      "files": [
+        "fig1_ambient_conditions.png",
+        "fig1_ambient_conditions.svg"
+      ],
+      "axes_count": 2,
+      "live_canvas_nonwhite_fraction": 0.05919811320754717,
+      "text_outside_original_canvas": []
+    },
+    {
+      "name": "fig2_time_histories",
+      "files": [
+        "fig2_time_histories.png",
+        "fig2_time_histories.svg"
+      ],
+      "axes_count": 2,
+      "live_canvas_nonwhite_fraction": 0.08081187010078388,
+      "text_outside_original_canvas": []
+    },
+    {
+      "name": "fig3_radial_profiles",
+      "files": [
+        "fig3_radial_profiles.png",
+        "fig3_radial_profiles.svg"
+      ],
+      "axes_count": 2,
+      "live_canvas_nonwhite_fraction": 0.08752519596864501,
+      "text_outside_original_canvas": []
+    },
+    {
+      "name": "fig4_spatiotemporal_fields",
+      "files": [
+        "fig4_spatiotemporal_fields.png",
+        "fig4_spatiotemporal_fields.svg"
+      ],
+      "axes_count": 4,
+      "live_canvas_nonwhite_fraction": 0.6372441520467836,
+      "text_outside_original_canvas": []
+    },
+    {
+      "name": "fig5_spatial_convergence",
+      "files": [
+        "fig5_spatial_convergence.png",
+        "fig5_spatial_convergence.svg"
+      ],
+      "axes_count": 2,
+      "live_canvas_nonwhite_fraction": 0.05563643150429265,
+      "text_outside_original_canvas": []
+    },
+    {
+      "name": "fig6_temporal_convergence",
+      "files": [
+        "fig6_temporal_convergence.png",
+        "fig6_temporal_convergence.svg"
+      ],
+      "axes_count": 3,
+      "live_canvas_nonwhite_fraction": 0.12637561274509804,
+      "text_outside_original_canvas": []
+    }
+  ],
+  "convergence": {
+    "spatial": [
+      [
+        800,
+        3.18e-06,
+        0.000865,
+        2.06e-06,
+        1.867e-06
+      ],
+      [
+        1600,
+        7.951e-07,
+        0.0002017,
+        5.151e-07,
+        4.668e-07
+      ],
+      [
+        3200,
+        1.988e-07,
+        4.881e-05,
+        1.288e-07,
+        1.167e-07
+      ]
+    ],
+    "temporal": [
+      [
+        2,
+        2.709e-05,
+        9.051e-06,
+        2.296e-05,
+        1.423e-06
+      ]
+    ],
+    "startup_all_records": [
+      {
+        "dt_s": 0.0025,
+        "surface_C_1s": 2.5198274866,
+        "adjacent_difference": null
+      },
+      {
+        "dt_s": 0.00125,
+        "surface_C_1s": 2.5198227261,
+        "adjacent_difference": 4.76e-06
+      },
+      {
+        "dt_s": 0.000625,
+        "surface_C_1s": 2.5198203456,
+        "adjacent_difference": 2.38e-06
+      },
+      {
+        "dt_s": 0.000313,
+        "surface_C_1s": 2.5198191553,
+        "adjacent_difference": 1.19e-06
+      },
+      {
+        "dt_s": 0.0025,
+        "surface_C_1s": 2.5198274866,
+        "adjacent_difference": null
+      }
+    ],
+    "spatial_nsub": 2,
+    "temporal_N": 400,
+    "startup_N": 3200,
+    "reported_status": "PASS - all executed acceptance checks satisfied.",
+    "recomputed": false
+  },
+  "preview_directory": "D:\\CUMCM\\tmp\\problem2_figure_previews",
+  "output_pngs_read_back": false
+}

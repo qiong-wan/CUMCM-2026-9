@@ -7,6 +7,7 @@
 
 - Python 3.11+
 - `numpy`, `scipy`, `openpyxl`
+- 绘图另需 `matplotlib>=3.8`，以及 Microsoft YaHei、SimHei 或其他受支持的中文字体。
 
 ## 运行
 
@@ -20,6 +21,21 @@ python src/problem-2/solve_problem2.py --full
 # 只生成结果文件、跳过较慢的验证（约 1 分钟）
 python src/problem-2/solve_problem2.py --skip-verify
 ```
+
+## 图像生成
+
+在 `Solution` 目录运行：
+
+```bash
+python src/problem-2/generate_figures.py
+```
+
+脚本读取现有 `result2.xlsx`、`verification.txt` 和 `附件1.xlsx`，生成前3小时的
+环境边界、典型位置时间历程、径向剖面、时空分布及空间/时间收敛图，不重新求解。
+六组图以300 dpi PNG和SVG写入 `output/problem-2/image/`；同目录包含图像说明和
+输入校验清单。输入文件保持不变。可用 `--dpi` 调整分辨率，或用
+`--skip-convergence` 只生成前四张分布图。布局检查预览位于项目的
+`tmp/problem2_figure_previews/`。
 
 ## 输出
 
