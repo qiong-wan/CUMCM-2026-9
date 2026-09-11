@@ -96,9 +96,34 @@ PREHEAT_END_S = 14400.0
 T_END_OUT = 10800.0     # reported horizon (3 h)
 N_OUT = 20              # delivery grid -> 0.1 cm spacing
 N_REF = 3200            # production mesh -> dr = 0.00625 mm <= 0.025 mm
-NSUB = 4                # implicit sub-steps per second (dt = 0.25 s)
+
+# Ramped time-step schedule for the production run.  The initial surface layer
+# is singular (uniform C but C_s != C_inf), so the first seconds need a very
+# small step; the solution smooths quickly and the bulk can use a coarser step.
+DT_START = 0.0025       # first-second step [s]      -> nsub = 400
+DT_BULK = 0.03125       # asymptotic step [s]        -> nsub = 32
+RAMP_RATIO = 1.3        # geometric growth of dt per second
+
 PICARD_TOL = 1.0e-11
 PICARD_MAX_IT = 100
+
+
+def production_nsub(sec: int) -> int:
+    """Ramped sub-step count for output second ``sec`` (1-based)."""
+    if sec * np.log(RAMP_RATIO) + np.log(DT_START) >= np.log(DT_BULK):
+        dt = DT_BULK
+    else:
+        dt = DT_START * RAMP_RATIO ** (sec - 1)
+    return max(1, int(round(1.0 / dt)))
+
+
+def scaled_nsub(factor: int):
+    """Return a ramped schedule with every sub-step count multiplied by ``factor``."""
+
+    def schedule(sec: int) -> int:
+        return production_nsub(sec) * factor
+
+    return schedule
 
 TABLE_TIMES_S = np.array([1800, 3600, 5400, 7200, 9000, 10800])
 TABLE_TIMES_H = np.array([0.5, 1.0, 1.5, 2.0, 2.5, 3.0])
@@ -170,7 +195,7 @@ def ambient_functions(preheat_end: float):
 # --------------------------------------------------------------------------
 def simulate(
     N: int = N_REF,
-    nsub: int = NSUB,
+    nsub=production_nsub,
     t_end: float = T_END_OUT,
     preheat_end: float = PREHEAT_END_S,
     sample_step: int | None = None,
@@ -182,8 +207,11 @@ def simulate(
     ----------
     N : int
         Number of control volumes (must be a multiple of ``N_OUT``).
-    nsub : int
-        Implicit sub-steps per 1 s output interval (``dt = 1/nsub``).
+    nsub : int or callable
+        Implicit sub-steps per 1 s output interval.  An ``int`` gives the
+        uniform step ``dt = 1/nsub``; a callable ``nsub(sec)`` returns the
+        count for output second ``sec`` (1-based), allowing a ramped step that
+        resolves the singular start-up and coarsens later.
     t_end : float
         Simulation horizon [s] (integer).
     preheat_end : float
@@ -205,10 +233,16 @@ def simulate(
 
     dr, r, vol, ge, gw, a_r = build_geometry(N, R)
     _, _, ambient = ambient_functions(preheat_end)
-    dt = 1.0 / nsub
     nsec = int(round(t_end))
-    if abs(nsec * dt * nsub - t_end) > 1e-9:
+    if abs(nsec - t_end) > 1e-9:
         raise ValueError("t_end must be an integer number of seconds")
+
+    def nsub_of(sec: int) -> int:
+        value = nsub(sec) if callable(nsub) else nsub
+        value = int(round(value))
+        if value < 1:
+            raise ValueError("nsub must be at least 1")
+        return value
 
     idx = np.arange(0, N + 1, sample_step)
     T = np.full(N + 1, T_INIT)
@@ -250,12 +284,18 @@ def simulate(
     acc_moist = 0.0
     picard_max_it = 0
     picard_max_res = 0.0
+    nsub_min = 10**9
+    nsub_max = 0
 
     for sec in range(1, nsec + 1):
+        n_sub = nsub_of(sec)
+        nsub_min = min(nsub_min, n_sub)
+        nsub_max = max(nsub_max, n_sub)
+        dt = 1.0 / n_sub
         heat_sec = 0.0
         moist_sec = 0.0
-        for sub in range(nsub):
-            t_new = ((sec - 1) * nsub + sub + 1) * dt
+        for sub in range(n_sub):
+            t_new = (sec - 1) + (sub + 1) * dt
             t_inf, c_inf = ambient(t_new)
 
             T_old = T
@@ -339,6 +379,8 @@ def simulate(
         "picard_max_res": picard_max_res,
         "N": N,
         "nsub": nsub,
+        "nsub_min": nsub_min,
+        "nsub_max": nsub_max,
         "nsec": nsec,
         "dr": dr,
     }
@@ -797,7 +839,7 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     start = time.time()
-    res = simulate(N=N_REF, nsub=NSUB, t_end=T_END_OUT, record=True)
+    res = simulate(N=N_REF, nsub=production_nsub, t_end=T_END_OUT, record=True)
     print(f"Production run finished in {time.time() - start:.1f} s")
 
     write_result_xlsx(RESULT_FILE, res["r"], res["T_hist"], res["C_hist"])
