@@ -1,0 +1,457 @@
+% 2026 CUMCM A题论文底稿（当前仅依据队友仓库完成问题一，电子版，无身份信息）
+% 中文正文与标题统一使用本机宋体，避免 CJK 字形在预览时缺失。
+\PassOptionsToPackage{fontset=none}{ctex}
+\documentclass[withoutpreface,bwprint]{cumcmthesis}
+\usepackage{cumcm2026}
+\usepackage{graphicx}
+\setCJKmainfont[
+  Path=/System/Library/Fonts/Supplemental/,Extension=.ttc,FontIndex=6,
+  BoldFont=Songti,BoldFeatures={FontIndex=1}
+]{Songti}
+\setCJKfamilyfont{zhsong}[
+  Path=/System/Library/Fonts/Supplemental/,Extension=.ttc,FontIndex=6,
+  BoldFont=Songti,BoldFeatures={FontIndex=1}
+]{Songti}
+\setCJKfamilyfont{zhhei}[
+  Path=/System/Library/Fonts/Supplemental/,Extension=.ttc,FontIndex=6,
+  BoldFont=Songti,BoldFeatures={FontIndex=1}
+]{Songti}
+\providecommand{\songti}{\CJKfamily{zhsong}}
+\providecommand{\heiti}{\CJKfamily{zhhei}}
+\providecommand{\kaishu}{\CJKfamily{zhsong}}
+% 主标题与关键词采用宋体特粗；正文仍保持宋体 Regular。
+\newCJKfontfamily\titlefont[
+  Path=/System/Library/Fonts/Supplemental/,Extension=.ttc,FontIndex=0
+]{Songti}
+\newcommand{\titleemphasis}[1]{{\titlefont #1}}
+\newcommand{\keyword}[1]{\textbf{#1}}
+\makeatletter
+\renewcommand\keywords[1]{%
+  \renewcommand{\mcm@tokens@keywords}{#1}%
+  \par\vskip1ex
+  {\noindent\zihao{-4}\titlefont\mcm@cap@keywordsname：}~
+  {\titlefont\mcm@tokens@keywords}%
+}
+\makeatother
+\renewcommand{\cumcmkeywords}[1]{%
+  \par\vspace{0.8em}\noindent{\titlefont 关键词：} {\titlefont #1}%
+}
+% 保留既有字号和编号，只将三级标题统一为宋体特粗。
+\titleformat{\section}{\centering\titlefont\zihao{3}}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\titlefont\zihao{4}}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\titlefont\zihao{-4}}{\thesubsubsection}{0.8em}{}
+
+\title{\titleemphasis{药材烘干过程的传热传质建模}}
+\tihao{A}
+\yearinput{2026}
+\monthinput{9}
+\dayinput{10}
+
+\begin{document}
+
+\maketitle
+\begin{abstract}
+% 摘要待四问模型与结果完整后统一撰写。
+\end{abstract}
+
+\section{问题重述}
+
+\subsection{问题背景}
+
+题目给出一段近似圆柱形药材，其长度为 $L=25\,\si{cm}$、半径为 $R=2\,\si{cm}$。烘干开始时，药材内部温度均为 $28\,\si{\celsius}$，干基含水率（题面称水分浓度）均为 $2.55\,\si{kg/kg}$。附件 1 在 $0$ 至 $14400\,\si{s}$ 间每隔 $60\,\si{s}$ 给出烘房温度和水分浓度。
+
+\subsection{需要解决的问题}
+
+题目要求依次解决四个相互衔接的问题：首先建立预热平衡阶段的温度场和水分浓度场模型，并输出 $0$ 至 $1800\,\si{s}$ 的时空结果；其次采用附录 3 的经验式描述完整烘干过程；再次确定药材各处水分浓度均低于 $0.15\,\si{kg/kg}$ 的烘干时长；最后结合附件 2 的半径变化和附录 4 的经验式，确定收缩条件下的烘干时长。
+
+\section{问题分析}
+
+\subsection{问题一分析}
+
+药材长度与半径之比为 $L/R=12.5$。两端面在总表面积中的比例为
+\begin{equation}
+\frac{A_{\mathrm{end}}}{A_{\mathrm{side}}+A_{\mathrm{end}}}
+=\frac{2\pi R^2}{2\pi RL+2\pi R^2}
+=\frac{R}{L+R}=7.41\% .
+\label{eq:end_ratio}
+\end{equation}
+因此，以径向模型近似时，端面效应是约 $7.4\%$ 量级的几何误差来源；在第一问精度要求下，采用一维轴对称模型较为合适。附件 2 描述的尺寸收缩属于后续问题，第一问中半径保持为初始值。
+
+热传递和水分迁移具有明显不同的时间尺度。热扩散率为
+\begin{equation}
+\alpha=\frac{k}{\rho c_p}
+=\frac{0.36}{820\times2600}
+=1.6886\times10^{-7}\,\si{m^2/s},
+\label{eq:alpha}
+\end{equation}
+而初始水分扩散系数为
+\begin{equation}
+D_0=7\times10^{-9}\exp\left(-\frac{0.89}{2.55}\right)
+=4.9377\times10^{-9}\,\si{m^2/s}.
+\label{eq:d0}
+\end{equation}
+由此可得，$1800\,\si{s}$ 时的热 Fourier 数为 $0.7598$，初始基准传质 Fourier 数仅为 $0.0222$。同时，热 Biot 数 $hR/k=1.3889$，初始传质 Biot 数 $h_mR/D_0=3.2404$，均显著大于集总参数模型常用的适用界限 $0.1$。因此，预热阶段存在不可忽略的内部温度梯度和水分浓度梯度，必须求解空间分布。
+
+\subsection{问题二分析}
+
+问题二将研究时段扩展至完整烘干过程，且物性参数改由附录 3 的经验式给出。其模型、烘房边界的设定及计算结果均待依据实际求解方案补充。
+
+\subsection{问题三分析}
+
+问题三以药材内部各位置的水分浓度均低于阈值为终止条件，需在问题二模型的基础上确定首次满足该条件的时刻。具体的离散终止判据和计算过程待补充。
+
+\subsection{问题四分析}
+
+问题四引入附件 2 给出的半径变化，需在附录 4 物性经验式下处理几何边界随时间变化的影响。移动边界的实际处理方法待补充。
+
+\subsection{总体建模思路}
+
+以问题一的固定半径、时变环境边界模型为基础，后续各问依次扩展物性关系、干燥终止判据和几何变化；具体扩展以各问实际采用的模型和程序为准。
+
+\section{模型假设}
+
+\subsection{问题一}
+
+\begin{enumerate}
+  \item 药材为均质、各向同性介质，初始温度和含水率均匀。
+  \item 烘房环境在周向和轴向均匀，温度与水分浓度仅随时间变化。
+  \item 忽略轴向传热传质和端面效应，药材半径在 $1800\,\si{s}$ 内不发生变化。
+  \item 题设中的 $\rho$、$c_p$、$k$ 视为常数，水分扩散系数随局部含水率变化。
+  \item 题面未给出汽化潜热、蒸发焓及吸附等温线，因此不额外引入潜热耦合项；空气水分浓度与药材含水率之差视为经验有效传质推动力。
+\end{enumerate}
+
+\subsection{问题二}
+
+【待补充：问题二实际采用的模型假设及其依据】
+
+\subsection{问题三}
+
+【待补充：问题三实际采用的模型假设及其依据】
+
+\subsection{问题四}
+
+【待补充：问题四实际采用的模型假设及其依据】
+
+\section{符号说明}
+
+\begin{table}[H]
+\centering
+\caption{主要符号及含义}
+\label{tab:symbols}
+\begin{tabular}{ccl}
+\toprule[1.2pt]
+符号 & 单位 & 含义 \\
+\midrule
+$r$ & \si{m} & 到药材中心轴线的径向距离 \\
+$T,\ T_\infty$ & \si{\celsius} & 药材温度、烘房空气温度 \\
+$C,\ C_\infty$ & \si{kg/kg} & 药材干基含水率、烘房水分浓度 \\
+$\rho$ & \si{kg/m^3} & 药材密度 \\
+$c_p$ & \si{J/(kg\,K)} & 比热容 \\
+$k$ & \si{W/(m\,K)} & 导热系数 \\
+$D$ & \si{m^2/s} & 水分扩散系数 \\
+$h,\ h_m$ & \si{W/(m^2\,K)},\ \si{m/s} & 对流换热系数、对流传质系数 \\
+\bottomrule[1.2pt]
+\end{tabular}
+\end{table}
+
+\section{问题一的模型建立与求解}
+
+\subsection{建模原理}
+
+药材的几何简化、径向坐标及表面对流边界如图\ref{fig:model_schematic}所示。模型沿长度方向视为均匀，仅在半径方向求解温度和水分浓度的演化。
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{../output/problem-1/image/fig1_model_schematic.png}
+  \caption{圆柱药材的一维径向传热传质模型示意}
+  \label{fig:model_schematic}
+\end{figure}
+
+\subsubsection{时变边界条件的构造}
+
+记附件 1 的相邻观测点为 $(t_i,Y_i)$、$(t_{i+1},Y_{i+1})$，其中 $Y$ 表示 $T_\infty$ 或 $C_\infty$。在两个测点之间采用分段线性插值：
+\begin{equation}
+Y_\infty(t)=Y_i+
+\frac{Y_{i+1}-Y_i}{t_{i+1}-t_i}(t-t_i),
+\qquad t_i\leq t\leq t_{i+1}.
+\label{eq:linear_interp}
+\end{equation}
+该方法严格通过原始测点，不改变附件的 $60\,\si{s}$ 记录，也不会产生高阶插值可能出现的超调。第一问只使用 $0$ 至 $1800\,\si{s}$ 的 31 个原始时刻。
+图\ref{fig:ambient_conditions}给出了用于数值计算的烘房温度与水分浓度边界，以及附件 1 的对应观测点。
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.88\textwidth]{../output/problem-1/image/fig2_ambient_conditions.png}
+  \caption{预热平衡阶段的烘房边界条件}
+  \label{fig:ambient_conditions}
+\end{figure}
+
+\subsection{变量与参数定义}
+
+温度、含水率及边界变量的符号与单位见第四部分。问题一的密度、比热容、导热系数、对流换热系数和对流传质系数均采用题目附录 2 给定值；水分扩散系数由式（\ref{eq:diffusivity}）确定。
+
+\subsection{模型建立}
+
+\subsubsection{温度场模型}
+
+取半径 $r$ 至 $r+\mathrm{d}r$、长度为 $L$ 的薄环形控制体，其体积为 $\mathrm{d}V=2\pi rL\,\mathrm{d}r$。由 Fourier 定律，外向导热通量为
+\begin{equation}
+q_r=-k\frac{\partial T}{\partial r}.
+\label{eq:fourier}
+\end{equation}
+将能量积累率与控制体净流入热量相等，得到圆柱坐标下的非稳态导热方程：
+\begin{equation}
+\rho c_p\frac{\partial T}{\partial t}
+=\frac{1}{r}\frac{\partial}{\partial r}
+\left(kr\frac{\partial T}{\partial r}\right),
+\qquad 0<r<R.
+\label{eq:heat_pde}
+\end{equation}
+初始条件和中心对称条件为
+\begin{equation}
+T(r,0)=28,\qquad
+\left.\frac{\partial T}{\partial r}\right|_{r=0}=0.
+\label{eq:heat_initial_center}
+\end{equation}
+药材表面与烘房空气之间发生对流换热，故在 $r=R$ 处施加时变第三类边界：
+\begin{equation}
+-k\left.\frac{\partial T}{\partial r}\right|_{r=R}
+=h\bigl[T(R,t)-T_\infty(t)\bigr].
+\label{eq:heat_robin}
+\end{equation}
+
+\subsubsection{水分浓度场模型}
+
+令 $C=m_w/m_d$ 为干基含水率，$m_w$ 和 $m_d$ 分别表示局部水分质量和绝干固体质量。把绝干固体表观密度视为常数，根据 Fick 定律，水分外向通量可写为
+\begin{equation}
+J_{w,r}=-\rho_dD(C)\frac{\partial C}{\partial r}.
+\label{eq:fick}
+\end{equation}
+对同一薄环形控制体进行水分质量守恒并约去 $\rho_d$，得到
+\begin{equation}
+\frac{\partial C}{\partial t}
+=\frac{1}{r}\frac{\partial}{\partial r}
+\left[rD(C)\frac{\partial C}{\partial r}\right],
+\qquad 0<r<R,
+\label{eq:moisture_pde}
+\end{equation}
+其中
+\begin{equation}
+D(C)=7\times10^{-9}\exp\left(-\frac{0.89}{C}\right).
+\label{eq:diffusivity}
+\end{equation}
+初始条件和轴线条件分别为
+\begin{equation}
+C(r,0)=2.55,\qquad
+\left.\frac{\partial C}{\partial r}\right|_{r=0}=0.
+\label{eq:moisture_initial_center}
+\end{equation}
+表面传质边界为
+\begin{equation}
+-D(C)\left.\frac{\partial C}{\partial r}\right|_{r=R}
+=h_m\bigl[C(R,t)-C_\infty(t)\bigr].
+\label{eq:moisture_robin}
+\end{equation}
+初始时刻表面水分条件与空气条件不相容，这是由题设初值和环境数据共同决定的。数值计算中应保留 $C(r,0)=2.55$，使表面失水通量从首个时间步自然形成，而不应人为修改表面初值。
+
+\subsection{求解算法}
+
+题目要求的交付节点为 $0,0.1,\ldots,2.0\,\si{cm}$。为减小初始阶段表面水分薄边界层造成的离散偏差，实际计算采用 $N_{\mathrm{ref}}=1600$ 个径向控制体：
+\begin{equation}
+r_i=i\Delta r,\qquad \Delta r=\frac{R}{N_{\mathrm{ref}}}
+=1.25\times10^{-5}\,\si{m},
+\qquad i=0,1,\ldots,N_{\mathrm{ref}}.
+\label{eq:grid}
+\end{equation}
+每隔 $80$ 个细网格节点抽取一个交付节点，因此无需进行额外的空间插值。采用节点中心有限体积法。对内部节点 $i$，控制体的内、外侧面积和体积为
+\begin{equation}
+A_{i\pm1/2}=2\pi Lr_{i\pm1/2},\qquad
+V_i=\pi L\left(r_{i+1/2}^2-r_{i-1/2}^2\right).
+\label{eq:control_volume}
+\end{equation}
+将温度和水分方程统一写为变量 $u$、蓄积系数 $s$、扩散系数 $\Gamma$ 与边界系数 $H$ 的形式。内部控制体离散为
+\begin{equation}
+sV_i\frac{\mathrm du_i}{\mathrm dt}
+=A_{i+1/2}\Gamma_{i+1/2}\frac{u_{i+1}-u_i}{\Delta r}
+-A_{i-1/2}\Gamma_{i-1/2}\frac{u_i-u_{i-1}}{\Delta r}.
+\label{eq:fv_internal}
+\end{equation}
+中心控制体仅保留外侧通量；表面控制体则增加对流项
+\begin{equation}
+sV_{N_{\mathrm{ref}}}\frac{\mathrm du_{N_{\mathrm{ref}}}}{\mathrm dt}
+=A_{N_{\mathrm{ref}}-1/2}\Gamma_{N_{\mathrm{ref}}-1/2}
+\frac{u_{N_{\mathrm{ref}}-1}-u_{N_{\mathrm{ref}}}}{\Delta r}
++A_RH\bigl[u_\infty(t)-u_{N_{\mathrm{ref}}}\bigr].
+\label{eq:fv_surface}
+\end{equation}
+温度模块中 $(u,s,\Gamma,H)=(T,\rho c_p,k,h)$；水分模块中 $(u,s,\Gamma,H)=(C,1,D,h_m)$。为保证水分通量连续，界面扩散系数采用调和平均：
+\begin{equation}
+D_{i+1/2}=\frac{2D(C_i)D(C_{i+1})}{D(C_i)+D(C_{i+1})}.
+\label{eq:harmonic_mean}
+\end{equation}
+时间上采用后向 Euler 格式，将每一秒划分为 $40$ 个子步，故 $\Delta t=0.025\,\si{s}$。温度子问题在每个子步形成线性三对角系统；水分子问题采用 Picard 迭代：以当前迭代值计算界面扩散系数后组装三对角系统，直至相邻迭代的最大变化小于 $10^{-12}$，最多迭代 $60$ 次。每一整数秒抽样一次 21 个交付节点，并写入题设的两个工作表。
+
+\subsection{求解结果}
+
+图\ref{fig:spatiotemporal_fields}给出了温度场和干基含水率场在 $0$ 至 $1800\,\si{s}$ 内的时空分布。为考察不同位置和典型时刻的差异，进一步绘制径向剖面与时间历程，如图\ref{fig:radial_profiles}和图\ref{fig:time_histories}所示。
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{../output/problem-1/image/fig3_spatiotemporal_fields.png}
+  \caption{药材温度与干基含水率的时空分布}
+  \label{fig:spatiotemporal_fields}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{../output/problem-1/image/fig4_radial_profiles.png}
+  \caption{典型时刻的径向温度与干基含水率分布}
+  \label{fig:radial_profiles}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{../output/problem-1/image/fig5_time_histories.png}
+  \caption{典型径向位置的温度与干基含水率时间历程}
+  \label{fig:time_histories}
+\end{figure}
+
+温度场随烘房边界升温而整体上升，且表面响应快于中心。由交付节点结果可知，$1800\,\si{s}$ 时，中心温度为 $33.5754\,\si{\celsius}$，表面温度为 $36.7856\,\si{\celsius}$，两者相差 $3.2102\,\si{\celsius}$。图\ref{fig:spatiotemporal_fields}--\ref{fig:time_histories}表明，温度沿半径方向由中心向表面递增，说明在预热平衡阶段内部温度梯度不能忽略。
+
+水分迁移主要发生在近表面区域。$1800\,\si{s}$ 时，中心干基含水率仍为 $2.5500\,\si{kg/kg}$，而表面已降至 $1.5102\,\si{kg/kg}$；其空间分布与典型位置时间历程均显示，表面先发生明显失水，随后失水界面向内部缓慢推进。这与初始传质 Fourier 数较小的预判一致，也说明仅以平均含水率刻画该阶段无法反映表面和中心的差异。
+
+\subsection{结果检验与解释}
+
+数值程序从守恒性、非线性迭代收敛性、表面边界满足程度和物理趋势四个方面进行验收，结果汇总于表\ref{tab:verification}。热量与水分的守恒相对误差均低于 $10^{-4}$；每个水分时间步的 Picard 迭代均收敛，且温度、含水率的表面 Robin 残差保持在较小量级。温度和含水率的取值范围、径向单调性以及表面随时间的变化趋势亦均通过检查。
+
+空间网格细化下的交付节点最大差异如图\ref{fig:grid_convergence}所示。当网格由 $N=800$ 加密至 $N=1600$ 时，温度和干基含水率的最大差异分别为 $9.2\times10^{-7}\,\si{\celsius}$ 和 $1.9\times10^{-4}\,\si{kg/kg}$；后者主要发生在最初数秒的表面节点。对 $t\geq100\,\si{s}$ 的交付时刻，含水率差异小于 $6\times10^{-5}\,\si{kg/kg}$。在 $N=200$ 的时间步长检验中，将每秒子步数由 $40$ 加密至 $80$ 和由 $80$ 加密至 $160$ 时，含水率最大差异分别为 $6.5\times10^{-5}\,\si{kg/kg}$ 和 $3.3\times10^{-5}\,\si{kg/kg}$。因此，本文采用的 $N_{\mathrm{ref}}=1600$ 与 $\Delta t=0.025\,\si{s}$ 可满足题目所需的整数秒、$0.1\,\si{cm}$ 交付精度；但初始 $1$--$2\,\si{s}$ 的表面含水率仍存在约 $10^{-4}\,\si{kg/kg}$ 的离散不确定度。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{../output/problem-1/image/fig6_grid_convergence.png}
+  \caption{空间网格收敛性结果}
+  \label{fig:grid_convergence}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{问题一数值验收结果}
+\label{tab:verification}
+\begin{tabular}{lll}
+\toprule[1.2pt]
+检验项目 & 结果 & 判定 \\
+\midrule
+热量守恒相对误差 & $9.745\times10^{-6}$ & 通过 \\
+水分守恒相对误差 & $6.129\times10^{-6}$ & 通过 \\
+Picard 最大迭代次数 / 残差 & $4\,/\,5.773\times10^{-15}$ & 收敛 \\
+最大温度 Robin 残差 & $1.068\times10^{-4}\,\si{W/m^2}$ & 通过 \\
+最大水分 Robin 残差 & $8.000\times10^{-10}\,\si{kg/(kg\,m\,s)}$ & 通过 \\
+物理趋势检查 & 有限性与单调性均满足 & 通过 \\
+\bottomrule[1.2pt]
+\end{tabular}
+\end{table}
+
+\clearpage
+\section{问题二的模型建立与求解}
+
+\subsection{问题分析}
+\vspace{0.10\textheight}
+
+\subsection{模型建立}
+\vspace{0.14\textheight}
+
+\subsection{求解算法}
+\vspace{0.10\textheight}
+
+\subsection{求解结果}
+\vspace{0.12\textheight}
+
+\subsection{结果检验与解释}
+\vspace{0.10\textheight}
+
+\clearpage
+\section{问题三的模型建立与求解}
+
+\subsection{问题分析}
+\vspace{0.10\textheight}
+
+\subsection{模型建立}
+\vspace{0.14\textheight}
+
+\subsection{求解算法}
+\vspace{0.10\textheight}
+
+\subsection{求解结果}
+\vspace{0.12\textheight}
+
+\subsection{结果检验与解释}
+\vspace{0.10\textheight}
+
+\clearpage
+\section{问题四的模型建立与求解}
+
+\subsection{问题分析}
+\vspace{0.10\textheight}
+
+\subsection{模型建立}
+\vspace{0.14\textheight}
+
+\subsection{求解算法}
+\vspace{0.10\textheight}
+
+\subsection{求解结果}
+\vspace{0.12\textheight}
+
+\subsection{结果检验与解释}
+\vspace{0.10\textheight}
+
+\clearpage
+\section{模型的综合检验与误差分析}
+
+\subsection{误差来源}
+\vspace{0.08\textheight}
+
+\subsection{敏感性分析}
+\vspace{0.08\textheight}
+
+\subsection{稳健性或统计检验}
+\vspace{0.08\textheight}
+
+\subsection{不同方法对比}
+\vspace{0.08\textheight}
+
+\clearpage
+\section{模型评价、改进与推广}
+
+\subsection{模型优点}
+\vspace{0.06\textheight}
+
+\subsection{模型局限}
+
+问题一以固定半径圆柱、时变环境边界和水分扩散系数非线性为基础，未处理端面效应、潜热耦合及湿度至平衡含水率的换算。其余问题的局限待实际模型和结果补充后统一讨论。
+
+\subsection{改进方向}
+\vspace{0.06\textheight}
+
+\subsection{推广与应用}
+\vspace{0.06\textheight}
+
+\section{结论}
+\vspace{0.10\textheight}
+
+\section*{参考文献}
+% 待用户提供并在正文实际引用后添加；当前不列入任何条目。
+\vspace{0.08\textheight}
+
+\clearpage
+\begin{appendices}
+\section{文件和程序说明}
+\vspace{0.10\textheight}
+
+\section{核心代码}
+\vspace{0.10\textheight}
+
+\section{补充数据及图表}
+\vspace{0.10\textheight}
+\end{appendices}
+
+\CumcmAIUsed{文稿初稿整理、公式排版辅助和程序调试}
+
+\end{document}
