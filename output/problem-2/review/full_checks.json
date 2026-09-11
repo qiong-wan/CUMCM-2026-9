@@ -1,0 +1,160 @@
+{
+  "production_wall_s": 48.77903400000014,
+  "workbook_T_hist": {
+    "max_difference_unrounded": 4.999999620736162e-05,
+    "rounded_4dp_mismatch_count": 0
+  },
+  "workbook_C_hist": {
+    "max_difference_unrounded": 4.999959564599976e-05,
+    "rounded_4dp_mismatch_count": 0
+  },
+  "true_mass_balance_rel": 5.061293062794845e-14,
+  "heat_balance_rel": 2.6247766027551113e-12,
+  "picard": {
+    "max_iterations": 4,
+    "max_iterate_change": 5.7056581681536045e-12
+  },
+  "dry_mass_implied_by_latent_diagnostic_kg": {
+    "initial": 0.08640707230888758,
+    "final": 0.10962698214256855,
+    "increase_percent": 26.872695964833238
+  },
+  "fixed_initial_dry_density_latent_ratio_scenario": 10.88755975655726,
+  "existing_balance_audit": {
+    "mass_rel": 3.946879911353778e-15,
+    "heat_scheme_rel": 2.6247766027551113e-12,
+    "energy_change": 12691.826113121308,
+    "prop_heat": -13969.551567393464,
+    "prop_heat_rel": 1.1006730980147288,
+    "water_lost": 0.08933891101297531,
+    "latent": 158576.55358271266,
+    "heat_input": 20939.797063976985,
+    "latent_rel": 7.572974709268508
+  },
+  "full_time_comparison_N400_nsub4_to8": {
+    "temperature": {
+      "maximum": 0.00021782649496060458,
+      "time_s": 1306,
+      "radius_cm": 0.0,
+      "first_value": 30.139452616116504,
+      "second_value": 30.139234789621543,
+      "rounded_4dp_differences": 126651,
+      "paper_table_signed_differences": [
+        [
+          -0.00018452279739733513,
+          -0.0001802664160024392,
+          -0.0001699553616631988,
+          -0.00014918892278359408,
+          -0.00011547312758608541
+        ],
+        [
+          -4.026696124981299e-06,
+          -1.0448303129351189e-06,
+          2.3699441697999646e-06,
+          -8.047880179162803e-06,
+          -1.6823910016228183e-05
+        ],
+        [
+          7.936423727272768e-05,
+          7.757610104874857e-05,
+          7.118303494735301e-05,
+          6.810458327777269e-05,
+          6.235109649566084e-05
+        ],
+        [
+          6.527770486997042e-05,
+          6.45343266967302e-05,
+          5.992277490918241e-05,
+          5.207504317183975e-05,
+          4.2495532618147536e-05
+        ],
+        [
+          4.2001696975546565e-05,
+          4.2394287127933694e-05,
+          3.942438119963754e-05,
+          1.200190580874505e-05,
+          -1.2209562129328333e-05
+        ],
+        [
+          8.12899118329824e-06,
+          8.358183791301599e-06,
+          9.754411948392772e-06,
+          7.573311826547524e-06,
+          3.1884052376085492e-06
+        ]
+      ],
+      "paper_table_max_difference": 0.00018452279739733513
+    },
+    "moisture": {
+      "maximum": 0.0005327257864542467,
+      "time_s": 1,
+      "radius_cm": 2.0,
+      "first_value": 2.521725768321905,
+      "second_value": 2.521193042535451,
+      "rounded_4dp_differences": 6791,
+      "paper_table_signed_differences": [
+        [
+          1.9580156340737176e-07,
+          1.21340777559098e-06,
+          5.362203093106643e-06,
+          -9.693967450985497e-08,
+          -1.142275676113691e-05
+        ],
+        [
+          6.275824606216673e-06,
+          6.384474608989166e-06,
+          3.4236611554661067e-06,
+          -3.4408984519451735e-06,
+          -5.824746066140918e-06
+        ],
+        [
+          6.476908264829717e-06,
+          4.653460015102695e-06,
+          4.385661260819518e-07,
+          -2.897893348841052e-06,
+          -2.7830908617687555e-06
+        ],
+        [
+          1.6161930860292273e-06,
+          7.414123448512555e-07,
+          -1.0392549516513583e-06,
+          -2.079959420697719e-06,
+          -1.5976207161649825e-06
+        ],
+        [
+          -1.3966809657706136e-06,
+          -1.5884346158401286e-06,
+          -1.907187104910335e-06,
+          -1.861503999167624e-06,
+          -1.4180253395945641e-06
+        ],
+        [
+          -2.6264622672300675e-06,
+          -2.5749234568994694e-06,
+          -2.3785421601196788e-06,
+          -1.9857293227509842e-06,
+          -1.5265324990743068e-06
+        ]
+      ],
+      "paper_table_max_difference": 1.142275676113691e-05
+    }
+  },
+  "original_files_sha256": {
+    "D:\\CUMCM\\Solution\\problem.pdf": "052d8014bff5727c019b72e44fdffaf5c145ce04050dd938baaf3527db331736",
+    "D:\\CUMCM\\Solution\\data\\附件1.xlsx": "7ef32870abeef420b89560b2530ff60dfe4255917805151d89988d0311af9dd7",
+    "D:\\CUMCM\\Solution\\data\\附件3\\result2.xlsx": "23b261b295c1b787d000eebbca6521c37075107b6fcf78724f8d395ce1798ff4",
+    "D:\\CUMCM\\Solution\\src\\common\\fvm.py": "271191380ae48d05f3bb0fdb35bd48a017eeec93e1a461453cefea9c1d0387ad",
+    "D:\\CUMCM\\Solution\\src\\problem-2\\audit_problem2_inputs.py": "3c541af5f19c38d6420f774124e5534cf81e95e05d6c06655ff90689836752c2",
+    "D:\\CUMCM\\Solution\\src\\problem-2\\solve_problem2.py": "75b6d6df1f825a80b00c490c8de72a25abcdb8b8cbba0e5852a11b8ec604bb63",
+    "D:\\CUMCM\\Solution\\src\\problem-2\\README.md": "d2b3efd41598c132cec7c3665c9521251296d0261992e9e6c21704c43e68b5c7",
+    "D:\\CUMCM\\Solution\\src\\problem-2\\问题2_模型与算法说明.md": "055caa21d38f06d64901262dbc7120a7a76b8c898d8b13701dbae56e96c2e790",
+    "D:\\CUMCM\\Solution\\src\\problem-2\\问题2_解题框架与公式推导.md": "da7bda288554b92d71f0c02589568a18800e9035f750bdca270d3f3c6ebbaadd",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\input_audit.json": "37b6a4a11622830f23ae5d65e9605975ecd600bffbcc5b71df1cb42a5d67eed6",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\result2.xlsx": "5d6708770f0245c3d97d91f8927daa89d612bf4e241a14d59b728abb79cb12d4",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\table3_temperature.csv": "aa1de73b3b6277821c9db1ab1210417b5b7d441d12b6b995fb340e2acd71f167",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\table4_moisture.csv": "471b8e902fafcc6ed6e8475a119b067844f766eb688a71047deea9ffa44351c0",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\tables3_4.md": "ae56271fe316bcbfabf701aa6684b59db490e967bb45aec05638371af2c54efb",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\verification.txt": "9f9650e366f3c42c5d965e59bed104bad48f6ca45038a1ec849e36d31a84ae72"
+  },
+  "all_original_files_unchanged": true
+}

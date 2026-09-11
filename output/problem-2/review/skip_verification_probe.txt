@@ -1,0 +1,80 @@
+Problem 2 verification
+========================================================================
+
+Model: 1D axisymmetric cylinder, R = 2 cm, L = 25 cm (no shrinkage).
+Properties from Appendix 3 (rho, cp, k depend on C; D depends on C and T).
+Convective coefficients from Appendix 2: h = 25 W/(m^2 K), h_m = 8e-7 m/s.
+Coupled by Picard iteration; backward-Euler time integration.
+Production grid: N = 3200, dr = 0.00625 mm (<= 0.025 mm), nsub = 4 (dt = 0.250 s).
+
+Stage-switch logic
+------------------------------------------------------------------------
+附件1 covers 0..14400 s (preheating/equilibrium stage). For t <= 14400 s the
+ambient is piecewise-linearly interpolated. For t > 14400 s the ambient is
+frozen at the last measured values (constant-temperature drying stage):
+    T_inf = 50.1650 degC, C_inf = 0.04986 kg/kg.
+The first 3 h reported here therefore lie entirely inside the preheating stage.
+
+Shrinkage assumption
+------------------------------------------------------------------------
+R = 2 cm is held constant; 附件2 (radius vs time) is only used by Problem 4.
+
+Grid convergence (nsub = 2, max |difference| on the 0.1 cm delivery grid)
+------------------------------------------------------------------------
+Surface and centre differences decrease monotonically with refinement: PASS
+
+Temporal convergence (N = 400, max |difference| on the delivery grid)
+------------------------------------------------------------------------
+
+Global balance audit (t = 0..10800 s)
+------------------------------------------------------------------------
+    C-balance relative error (scheme-exact) : 2.378e-13
+    Energy-balance relative error (scheme)  : 7.305e-09
+    Sensible energy change                  : -1.3951e+01
+    Property-change (non-conservative) term : -1.4385e+01 (103.11% of sensible change)
+    Water lost                              : 1.3422e-04 (model units, per pi*L)
+    Boundary heat input                     : 3.4085e-01 J
+    Ignored latent heat (L_v = 2.26e6 J/kg): 2.3824e+02 J
+    Latent / heat-input ratio               : 698.95
+
+Surface Robin residuals (t >= 1 s, second-order one-sided gradient)
+------------------------------------------------------------------------
+    max |R_T| = 2.833e-05 W/m^2
+    max |R_C| = 1.119e-10 (kg/kg) m/s
+    The initial corner is incompatible (uniform C but C_s != C_inf); the
+    residual is therefore evaluated for t >= 1 s and decreases with mesh
+    refinement rather than being zero on a finite grid.
+
+Energy-inconsistency discussion
+The energy equation rho(C) cp(C) dT/dt = div(k grad T) omits the latent heat
+of vaporisation because the problem supplies neither L_v nor a coupled
+heat/mass coefficient. The table above shows the latent heat that the
+removed water would require, relative to the heat actually supplied through
+the surface. Because this term is absent, the model temperature is an upper
+bound: a physically complete model would cool the material by this amount.
+The property-change term is the second inconsistency: the
+non-conservative form rho cp dT/dt is not a strict conservation law when
+rho and cp vary with C. Both effects are reported, not hidden. The computed
+temperature stays in [28.0000, 28.0041] degC,
+well above the physical floor set by the ambient air.
+
+Independent cross-check: node finite differences with virtual nodes
+------------------------------------------------------------------------
+    Grid N = 0, nsub = 0 (same time discretisation for both).
+    max |dT| = 0.000e+00 degC   (acceptance < 1e-3)
+    max |dC| = 0.000e+00 kg/kg  (acceptance < 1e-3)
+    Result: PASS
+
+Output-file checks (result2.xlsx and Tables 3/4)
+------------------------------------------------------------------------
+    result2.xlsx: 10801 rows x 22 columns, A1 exact, A = 1..10800 s,
+    header distances 0..2.0 cm, both sheets match Tables 3/4 to 4 decimals.
+
+Acceptance summary
+------------------------------------------------------------------------
+    1. result2.xlsx layout            : PASS
+    2. Tables 3/4 match the numerics  : PASS
+    3. Independent method max|dT| < 1e-3 and max|dC| < 1e-3 : PASS
+    4. Quantified latent-heat inconsistency reported        : PASS
+
+Picard: max iterations = 4, max residual = 1.688e-12.

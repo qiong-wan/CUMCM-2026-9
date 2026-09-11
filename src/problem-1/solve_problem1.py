@@ -28,16 +28,27 @@ r_i = i*dr (i = 0..N, dr = R/N).  Backward-Euler in time with sub-step
 dt = 1/nsub s and integer-second sampling.  The resulting tridiagonal systems
 are solved with scipy.linalg.solve_banded; the nonlinear moisture system is
 handled by Picard iteration on the face diffusivities (harmonic mean of D(C)).
+<<<<<<< HEAD
+See src/problem-1/问题1_解题框架与公式推导.md.
+
+The production run uses a refined mesh (N_REF cells) and samples the fields at
+the required 0.1 cm output nodes, which removes the near-surface discretisation
+bias; a coarse mesh is retained for the convergence check.
+=======
 
 A refined "computational" mesh (N_REF cells) is used and sampled at the
 required 0.1 cm "delivery" nodes, which removes the near-surface discretisation
 bias of the coarse mesh.  The workbook stores t = 1..1800 s as in the template.
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
 
 Run:
     python src/problem-1/solve_problem1.py            # results + tables
     python src/problem-1/solve_problem1.py --verify   # also convergence study
+<<<<<<< HEAD
+=======
 
 See src/problem-1/问题1_算法与模型说明.md for the model and algorithm notes.
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
 """
 
 from __future__ import annotations
@@ -54,10 +65,15 @@ from scipy.linalg import solve_banded
 # --------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = ROOT / "data" / "附件1.xlsx"
+<<<<<<< HEAD
+OUT_DIR = ROOT / "output" / "problem-1"
+RESULT_FILE = OUT_DIR / "result1.xlsx"
+=======
 TEMPLATE_FILE = ROOT / "data" / "附件3" / "result1.xlsx"
 OUT_DIR = ROOT / "output" / "problem-1"
 RESULT_FILE = OUT_DIR / "result1.xlsx"
 AUDIT_FILE = OUT_DIR / "verification.txt"
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
 
 # --------------------------------------------------------------------------
 # Physical parameters (Appendix 2)
@@ -75,6 +91,12 @@ T_INIT = 28.0       # initial temperature [degC]
 C_INIT = 2.55       # initial dry-basis moisture [kg/kg]
 
 T_END = 1800.0      # simulation horizon [s]
+<<<<<<< HEAD
+N_OUT = 20          # output cells -> 0.1 cm radial spacing
+N_REF = 800         # production mesh (0.0025 cm cells, sampled onto output grid)
+NSUB = 40           # implicit sub-steps per output second (dt = 0.025 s)
+
+=======
 N_OUT = 20          # delivery grid -> 0.1 cm radial spacing
 N_REF = 1600        # production (computational) mesh -> dr = 0.00125 cm
 NSUB = 40           # implicit sub-steps per output second (dt = 0.025 s)
@@ -82,6 +104,7 @@ NSUB = 40           # implicit sub-steps per output second (dt = 0.025 s)
 PICARD_TOL = 1.0e-12
 PICARD_MAX_IT = 60
 
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
 TABLE_TIMES = np.array([100, 300, 600, 900, 1200, 1500, 1800])
 TABLE_DIST_CM = np.array([0.0, 0.5, 1.0, 1.5, 2.0])
 
@@ -102,6 +125,15 @@ def harmonic_mean(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def load_ambient() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+<<<<<<< HEAD
+    """Return (t, T_inf, C_inf) observations for 0 <= t <= 1800 s."""
+    wb = openpyxl.load_workbook(DATA_FILE, data_only=True)
+    ws = wb.active
+    rows = [r for r in ws.iter_rows(min_row=2, values_only=True) if r[0] is not None]
+    t = np.array([float(r[0]) for r in rows])
+    t_inf = np.array([float(r[1]) for r in rows])
+    c_inf = np.array([float(r[2]) for r in rows])
+=======
     """Load and audit the ambient data for 0 <= t <= 1800 s.
 
     Raises
@@ -140,6 +172,7 @@ def load_ambient() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     if t[0] > 1e-9 or t[-1] < T_END - 1e-9:
         raise ValueError("附件1 does not cover the interval [0, 1800] s")
 
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
     keep = t <= T_END + 1e-9
     return t[keep], t_inf[keep], c_inf[keep]
 
@@ -206,19 +239,31 @@ def simulate(N: int = N_REF, nsub: int = NSUB, sample_step: int | None = None):
     N : number of radial cells (grid nodes = N+1).
     nsub : implicit sub-steps per 1 s output interval.
     sample_step : radial stride used when returning the fields; default keeps
+<<<<<<< HEAD
+        the full fine mesh.  Use N // N_OUT to sample onto the 0.1 cm grid.
+=======
         the full mesh.  Use N // N_OUT to sample onto the 0.1 cm grid.
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
 
     Returns
     -------
     r : node radii [m] (sampled).
+<<<<<<< HEAD
+    T_hist, C_hist : (1801, n_sample) arrays sampled at integer seconds.
+=======
     T_hist, C_hist : (nsec+1, n_sample) arrays at integer seconds 0..1800.
     aux : diagnostic dictionary with scalar history and Picard statistics.
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
     """
     dr, r, vol, ge, gw, a_r = build_geometry(N)
     t_obs, t_inf_obs, c_inf_obs = load_ambient()
 
     dt = 1.0 / nsub
     nsec = int(round(T_END))
+<<<<<<< HEAD
+    nsteps = nsec * nsub
+=======
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
 
     T = np.full(N + 1, T_INIT)
     C = np.full(N + 1, C_INIT)
@@ -238,6 +283,14 @@ def simulate(N: int = N_REF, nsub: int = NSUB, sample_step: int | None = None):
     low_t, diag_t, up_t = build_tridiag(vol, ge, gw, a_r, N, dr, dt, s_t, H, k_e, k_w)
     ab_t = to_banded(low_t, diag_t, up_t)
 
+<<<<<<< HEAD
+    # --- moisture: nonlinear, Picard iteration each sub-step ---
+    s_c = 1.0
+    tol = 1.0e-12
+    max_it = 60
+
+    for sec in range(1, nsec + 1):
+=======
     # --- diagnostic scalar histories ---
     e_tot = np.empty(nsec + 1)
     m_tot = np.empty(nsec + 1)
@@ -257,6 +310,7 @@ def simulate(N: int = N_REF, nsub: int = NSUB, sample_step: int | None = None):
         t_inf_end = float(np.interp(sec, t_obs, t_inf_obs))
         c_inf_end = float(np.interp(sec, t_obs, c_inf_obs))
 
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
         for sub in range(nsub):
             t_new = ((sec - 1) * nsub + sub + 1) * dt
             t_inf = np.interp(t_new, t_obs, t_inf_obs)
@@ -267,16 +321,31 @@ def simulate(N: int = N_REF, nsub: int = NSUB, sample_step: int | None = None):
             T = solve_banded((1, 1), ab_t, rhs)
 
             # moisture update (Picard on D(C))
+<<<<<<< HEAD
+            rhs_c = build_rhs(vol, C, s_c, dt, a_r, HM, c_inf)
+            C_new = C.copy()
+            for _ in range(max_it):
+=======
             rhs_c = build_rhs(vol, C, 1.0, dt, a_r, HM, c_inf)
             C_new = C.copy()
             converged = False
             res = np.inf
             for it in range(1, PICARD_MAX_IT + 1):
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
                 D = D_of_C(C_new)
                 ge_cond = harmonic_mean(D[:N], D[1:])
                 gw_cond = np.empty(N + 1)
                 gw_cond[1:] = ge_cond
                 low_c, diag_c, up_c = build_tridiag(
+<<<<<<< HEAD
+                    vol, ge, gw, a_r, N, dr, dt, s_c, HM, ge_cond, gw_cond
+                )
+                C_sol = solve_tridiag(low_c, diag_c, up_c, rhs_c)
+                if np.max(np.abs(C_sol - C_new)) < tol:
+                    C_new = C_sol
+                    break
+                C_new = C_sol
+=======
                     vol, ge, gw, a_r, N, dr, dt, 1.0, HM, ge_cond, gw_cond
                 )
                 C_sol = solve_tridiag(low_c, diag_c, up_c, rhs_c)
@@ -292,10 +361,41 @@ def simulate(N: int = N_REF, nsub: int = NSUB, sample_step: int | None = None):
                 )
             picard_max_it = max(picard_max_it, it)
             picard_max_res = max(picard_max_res, res)
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
             C = C_new
 
         T_hist[sec] = T[idx]
         C_hist[sec] = C[idx]
+<<<<<<< HEAD
+
+    return r[idx], T_hist, C_hist
+
+
+def check_balances(r, T_hist, C_hist, N):
+    """Verify global energy and moisture balances over the whole run."""
+    dr, _, vol, _, _, a_r = build_geometry(N)
+    t_obs, t_inf_obs, c_inf_obs = load_ambient()
+
+    energy0 = np.sum(RHO * CP * vol * T_hist[0])
+    energy1 = np.sum(RHO * CP * vol * T_hist[-1])
+    moist0 = np.sum(vol * C_hist[0])
+    moist1 = np.sum(vol * C_hist[-1])
+
+    t = np.arange(T_hist.shape[0], dtype=float)
+    t_inf = np.interp(t, t_obs, t_inf_obs)
+    c_inf = np.interp(t, t_obs, c_inf_obs)
+    q_heat = a_r * H * (t_inf - T_hist[:, -1])
+    q_mass = a_r * HM * (c_inf - C_hist[:, -1])
+
+    heat_in = np.sum(0.5 * (q_heat[1:] + q_heat[:-1]) * np.diff(t))
+    mass_in = np.sum(0.5 * (q_mass[1:] + q_mass[:-1]) * np.diff(t))
+
+    e_err = abs((energy1 - energy0) - heat_in) / max(abs(energy1 - energy0), 1e-30)
+    m_err = abs((moist1 - moist0) - mass_in) / max(abs(moist1 - moist0), 1e-30)
+    return e_err, m_err
+
+
+=======
         e_tot[sec] = np.sum(RHO * CP * vol * T)
         m_tot[sec] = np.sum(vol * C)
         t_surf[sec] = T[-1]
@@ -387,6 +487,7 @@ def check_physical(T_hist, C_hist, aux) -> list[str]:
     return failures
 
 
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
 def extract_tables(r, T_hist, C_hist):
     """Extract Table 1 (temperature) and Table 2 (moisture) for the paper."""
     t_idx = TABLE_TIMES.astype(int)
@@ -398,13 +499,29 @@ def extract_tables(r, T_hist, C_hist):
 
 
 def save_result(r, T_hist, C_hist) -> None:
+<<<<<<< HEAD
+    """Write the full temperature and moisture fields to result1.xlsx."""
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    dist_cm = np.round(r * 100.0, 10)
+    times = np.arange(T_hist.shape[0], dtype=float)
+=======
     """Write the t = 1..1800 s fields to result1.xlsx (template layout)."""
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     dist_cm = np.round(r * 100.0, 10)
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
 
     wb = openpyxl.Workbook()
     for sheet_name, data in (("温度", T_hist), ("水分浓度", C_hist)):
         ws = wb.create_sheet(sheet_name)
+<<<<<<< HEAD
+        ws.cell(row=1, column=1, value="时间/s")
+        for j, d in enumerate(dist_cm, start=2):
+            ws.cell(row=1, column=j, value=float(d))
+        for i, t in enumerate(times, start=2):
+            ws.cell(row=i, column=1, value=float(t))
+            for j in range(data.shape[1]):
+                ws.cell(row=i, column=j + 2, value=round(float(data[i - 2, j]), 4))
+=======
         ws.cell(row=1, column=1, value="时间\\到药材中心的距离")
         for j, d in enumerate(dist_cm, start=2):
             ws.cell(row=1, column=j, value=float(d))
@@ -413,6 +530,7 @@ def save_result(r, T_hist, C_hist) -> None:
             for j in range(data.shape[1]):
                 cell = ws.cell(row=i + 1, column=j + 2, value=round(float(data[i, j]), 4))
                 cell.number_format = "0.0000"
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
     del wb["Sheet"]
     wb.save(RESULT_FILE)
 
@@ -426,6 +544,34 @@ def write_tables(tab_t, tab_c) -> None:
         (OUT_DIR / fname).write_text("\n".join(lines) + "\n", encoding="utf-8-sig")
 
 
+<<<<<<< HEAD
+def run_verification(T_prod, C_prod) -> None:
+    """Report global balances and grid/time convergence of the solution."""
+    # global conservation on the required 0.1 cm mesh
+    r0, T0, C0 = simulate(N=N_OUT, nsub=NSUB, sample_step=1)
+    e_err, m_err = check_balances(r0, T0, C0, N=N_OUT)
+    print(f"\nGlobal energy balance relative error  : {e_err:.3e}")
+    print(f"Global moisture balance relative error : {m_err:.3e}")
+
+    # spatial convergence at fixed dt (coarse 0.1 cm mesh as reference)
+    print("\nSpatial convergence (sampled on the 0.1 cm grid):")
+    prev = (T0, C0)
+    for N in (40, 100, 200, 400):
+        _, TT, CC = simulate(N=N, nsub=NSUB, sample_step=N // N_OUT)
+        d_t = np.max(np.abs(TT - prev[0]))
+        d_c = np.max(np.abs(CC - prev[1]))
+        print(f"  N={N:4d} vs previous: dT = {d_t:.3e} degC, dC = {d_c:.3e} kg/kg")
+        prev = (TT, CC)
+    d_t = np.max(np.abs(T_prod - prev[0]))
+    d_c = np.max(np.abs(C_prod - prev[1]))
+    print(f"  N={N_REF:4d} vs previous: dT = {d_t:.3e} degC, dC = {d_c:.3e} kg/kg")
+
+    # temporal convergence at fixed mesh
+    print(f"\nTemporal convergence (N={N_REF}, sampled on the 0.1 cm grid):")
+    prev = (T_prod, C_prod)
+    for nsub in (80, 160):
+        _, TT, CC = simulate(N=N_REF, nsub=nsub, sample_step=N_REF // N_OUT)
+=======
 def write_audit(lines: list[str]) -> None:
     """Persist the verification report as plain text."""
     (OUT_DIR / "verification.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -473,6 +619,7 @@ def run_convergence() -> None:
     prev = (T_ref, C_ref)
     for nsub in (80, 160):
         _, TT, CC, _ = simulate(N=200, nsub=nsub, sample_step=200 // N_OUT)
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
         d_t = np.max(np.abs(TT - prev[0]))
         d_c = np.max(np.abs(CC - prev[1]))
         print(f"  nsub={nsub:3d} vs previous: dT = {d_t:.3e} degC, dC = {d_c:.3e} kg/kg")
@@ -484,16 +631,25 @@ def main() -> None:
     parser.add_argument(
         "--verify",
         action="store_true",
+<<<<<<< HEAD
+        help="run the grid/time convergence study (slower)",
+=======
         help="also run the grid/time convergence study (slower)",
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
     )
     args = parser.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
+<<<<<<< HEAD
+    # production run: fine mesh, sampled onto the required 0.1 cm grid
+    r, T_hist, C_hist = simulate(N=N_REF, nsub=NSUB, sample_step=N_REF // N_OUT)
+=======
     # production run: refined mesh sampled onto the required 0.1 cm grid
     r, T_hist, C_hist, aux = simulate(
         N=N_REF, nsub=NSUB, sample_step=N_REF // N_OUT
     )
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
     save_result(r, T_hist, C_hist)
 
     tab_t, tab_c = extract_tables(r, T_hist, C_hist)
@@ -509,10 +665,15 @@ def main() -> None:
     for i, t in enumerate(TABLE_TIMES):
         print(f"{t:<5d}" + "".join(f"{v:>10.4f}" for v in tab_c[i]))
 
+<<<<<<< HEAD
+    if args.verify:
+        run_verification(T_hist, C_hist)
+=======
     verify(T_hist, C_hist, aux)
 
     if args.verify:
         run_convergence()
+>>>>>>> 6a89e9705d6c45acdd2430e4aa0faa3fbdd20ae1
 
 
 if __name__ == "__main__":

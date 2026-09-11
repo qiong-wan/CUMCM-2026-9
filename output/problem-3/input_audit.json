@@ -1,0 +1,93 @@
+{
+  "status": "PASS",
+  "environment": {
+    "shape_241_by_3": true,
+    "finite": true,
+    "missing": 0,
+    "duplicate_times": 0,
+    "duplicate_records": 0,
+    "strict_order": true,
+    "all_intervals_60_s": true,
+    "coverage": [
+      0.0,
+      14400.0
+    ],
+    "last_observation": [
+      14400.0,
+      50.165,
+      0.04986
+    ],
+    "minimum": [
+      0.0,
+      28.0,
+      0.01963
+    ],
+    "maximum": [
+      14400.0,
+      50.246,
+      0.05025
+    ]
+  },
+  "units": [
+    "s",
+    "degC",
+    "kg/kg"
+  ],
+  "template": {
+    "sheets": [
+      "Sheet1"
+    ],
+    "rows": [
+      [
+        "时间\\到药材中心的距离",
+        0,
+        0.1,
+        0.2,
+        "…",
+        2
+      ],
+      [
+        60,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        120,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        180,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        "…",
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    ]
+  },
+  "tail_window_s": [
+    12600,
+    14400
+  ],
+  "tail_count": 31,
+  "tail_arithmetic_means": [
+    50.01325806451614,
+    0.049988709677419356
+  ],
+  "treatment": "No corrections, filtering, sorting, smoothing or clipping."
+}
