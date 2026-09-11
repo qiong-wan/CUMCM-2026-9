@@ -1,0 +1,40 @@
+{"name": "short", "N": 400, "factor": 0.5, "mode": "last", "environment_tail": [50.165, 0.04986], "event": null, "steps": 579, "rejected_steps": 0, "step_range_s": [0.00025, 0.883048107664102], "max_iterations": 4, "max_scaled_change": 1.990564575916163e-11, "max_scaled_residual": 3.2778932898437554e-15, "mass_relative_defect": 8.195043764685356e-16, "heat_relative_defect": 3.624906038956808e-13, "mass_change_scaled": -4.56897316347933e-06, "cumulative_heat_storage_scaled": 14.436642474675729, "cumulative_heat_boundary_scaled": 14.436642474680962, "cumulative_moisture_boundary_scaled": -4.568973163479658e-06, "radial_inversion_max": 0.0, "temporal_C_increase_max": 0.0, "temperature_step_decrease_min": 0.0, "max_C_above_center": 0.0, "temperature_range": [28.0, 28.05806906027671], "moisture_range": [2.327166698743558, 2.55], "diffusivity_range": [5.5608391199075425e-09, 5.646727512172749e-09], "horizon_extensions": [], "end_argmax_r_m": 0.0, "runtime_s": 0.4991446000021824, "all_necessary_numerical_checks": "PENDING_CONVERGENCE"}
+Reusing explicitly requested case: space400
+Reusing explicitly requested case: space800
+Reusing explicitly requested case: space1600
+Reusing explicitly requested case: space3200
+Reusing explicitly requested case: space6400
+Reusing explicitly requested case: space12800
+Reusing explicitly requested case: production
+Reusing explicitly requested case: time12800quarter
+Reusing explicitly requested case: mean12800
+Problem 3 complete: all numerical and workbook checks passed.
+{
+  "status": "PASS",
+  "checks": {
+    "input_audit": "PASS",
+    "synthetic_and_independent_short_time_checks": "PASS",
+    "independent_boundary_corruption_detected": "PASS",
+    "independent_moisture_balance": "PASS",
+    "variable_capacity_heat_balance": "PASS",
+    "nonlinear_change_and_equation_defect": "PASS",
+    "positive_finite_states": "PASS",
+    "full_domain_radial_order": "PASS",
+    "full_domain_maximum_at_center": "PASS",
+    "independent_robin_and_symmetry": "PASS",
+    "event_and_strict_end": "PASS"
+  },
+  "scope": {
+    "convergence_study": false,
+    "sensitivity_study": false,
+    "delivery_ready": false
+  },
+  "error": {
+    "status": "SKIPPED"
+  },
+  "sensitivity": {
+    "status": "SKIPPED"
+  }
+}
+Reusing explicitly requested case: production
+Problem 3 flow complete.

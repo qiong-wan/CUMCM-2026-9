@@ -13,14 +13,14 @@ import openpyxl
 from scipy.integrate import solve_ivp
 from scipy.sparse import diags, bmat
 
-from solve_problem3 import (OUT, ROOT, R, H, HM, Environment, Solver, audit,
+from solve_problem3 import (OUT, AUDIT_DIR, CASES_DIR, VALIDATION_DIR, ROOT, R, H, HM, Environment, Solver, audit,
                             dump_json, hashes, properties, refine_event)
 
 
 def load_case(name):
     """Read one full-precision case and its recorded run settings."""
-    data = np.load(OUT / f"{name}.npz")
-    meta = json.loads((OUT / f"{name}.json").read_text(encoding="utf-8"))
+    data = np.load(CASES_DIR / f"{name}.npz")
+    meta = json.loads((CASES_DIR / f"{name}.json").read_text(encoding="utf-8"))
     return data, meta
 
 
@@ -137,7 +137,7 @@ def event_checks(name, values):
     """Separate root tolerance, local integration and endpoint all-node checks."""
     data, meta = load_case(name)
     solver = Solver(meta["N"], Environment(values, meta["mode"]))
-    seed = np.load(OUT / f"{name}_event_seed.npz")
+    seed = np.load(CASES_DIR / f"{name}_event_seed.npz")
     old, t0, width = seed["state"], float(seed["t"]), float(seed["width"])
     tight, _, _ = refine_event(solver, old, t0, width, 1e-5)
     lower, upper = 0., width
@@ -215,7 +215,7 @@ def regression(name):
         worst = max(selected, key=lambda row: row[2])
         summary[label] = {"max_abs_difference": worst[2], "time_s": worst[1],
                           "radius_cm": worst[3] / 10}
-    np.savez_compressed(OUT / "problem2_comparison_snapshot.npz", samples=snapshot)
+    np.savez_compressed(VALIDATION_DIR / "problem2_comparison_snapshot.npz", samples=snapshot)
     return {"status": "PASS", "interpretation": "Comparison executed against the recorded workbook snapshot; previous rounded outputs are not exact truth",
             "source_workbook_sha256": hashlib.sha256(source_bytes).hexdigest(),
             "rounding_uncertainty_per_old_value": 5e-5, "sampling": "60 s, 21 nodes, first 3 h", **summary}
@@ -223,7 +223,7 @@ def regression(name):
 
 def verify_workbook():
     """Reopen all delivered cells and reconcile times, headers, values and formats."""
-    payload = json.loads((OUT / "workbook_payload.json").read_text(encoding="utf-8"))
+    payload = json.loads((AUDIT_DIR / "workbook_payload.json").read_text(encoding="utf-8"))
     wb = openpyxl.load_workbook(OUT / "result3.xlsx", read_only=False, data_only=False)
     ws = wb["Sheet1"]
     failures = []
@@ -261,7 +261,7 @@ def verify_workbook():
               "maximum_roundtrip_difference": delta_max, "format_errors": format_errors,
               "regular_rows": len(regular), "extra_actual_end_time_s": float(times[-1]),
               "table5_checked_points": int(len(table) * 5)}
-    dump_json(OUT / "workbook_verification.json", report)
+    dump_json(VALIDATION_DIR / "workbook_verification.json", report)
     narrative = OUT / "结果与验证.md"
     if narrative.exists():
         heading = "## 12. 工作簿最终复核"
@@ -314,7 +314,7 @@ def main():
             "space6400_to_12800_full_C_max": float(np.max(abs(near_states[0][1] - near_states[1][1, ::2]))),
             "time_factor1_to_half_full_C_max": float(np.max(abs(near_states[1][1] - near_states[2][1]))),
             "time_factorhalf_to_quarter_full_C_max": float(np.max(abs(near_states[2][1] - near_states[3][1])))}
-    np.savez_compressed(OUT / "near_end_common_fields.npz", time_s=205800.,
+    np.savez_compressed(VALIDATION_DIR / "near_end_common_fields.npz", time_s=205800.,
                         space6400=near_states[0], space12800=near_states[1],
                         production=near_states[2], time12800quarter=near_states[3])
     times, pi, si = np.intersect1d(production["times"], sensitivity["times"], return_indices=True)
@@ -371,10 +371,10 @@ def main():
                           "two_dimensional_end_faces": "SKIPPED",
                           "latent_heat_and_full_enthalpy_closure": "SKIPPED",
                           "validation_against_measured_material_fields": "SKIPPED"}}
-    formula_doc = (OUT / "模型与算法说明.md").read_text(encoding="utf-8")
+    formula_doc = (ROOT / "src" / "problem-3" / "模型与算法说明.md").read_text(encoding="utf-8")
     numbers = [int(v) for v in re.findall(r"\\tag\{(\d+)\}", formula_doc)]
     report["formula_numbering"] = "PASS" if numbers == list(range(1, 66)) else "FAIL"
-    before = json.loads((OUT / "protected_hashes_before.json").read_text(encoding="utf-8"))
+    before = json.loads((VALIDATION_DIR / "protected_hashes_before.json").read_text(encoding="utf-8"))
     after = hashes()
     changed = [p for p, h in before.items() if after.get(p) != h]
     critical_prefixes = ("data/", "src/common/", "src/problem-1/")
@@ -386,18 +386,18 @@ def main():
                                   "critical_model_inputs_changed": critical_changed,
                                   "external_change_note": "The task did not write previous-question files. Concurrent updates are retained and recorded; original baseline hashes are not replaced.",
                                   "excluded": "Office lock files, bytecode and output PNGs (repository instruction)"}
-    dump_json(OUT / "protected_hashes_after.json", after)
+    dump_json(VALIDATION_DIR / "protected_hashes_after.json", after)
     if critical_changed or report["formula_numbering"] == "FAIL":
         report["status"] = "FAIL"
     report["status_scope"] = "Executed problem-3 numerical requirements and immutable model inputs; external previous-question hash mismatches remain FAIL in protected_files"
     if report["status"] == "PASS":
         meta["all_necessary_numerical_checks"] = "PASS"
-        dump_json(OUT / "production.json", meta)
-    if (OUT / "verification.json").exists():
-        previous = json.loads((OUT / "verification.json").read_text(encoding="utf-8"))
-        if previous["status"] == "FAIL" and not (OUT / "verification_initial_scope_failure.json").exists():
-            dump_json(OUT / "verification_initial_scope_failure.json", previous)
-    dump_json(OUT / "verification.json", report)
+        dump_json(CASES_DIR / "production.json", meta)
+    if (VALIDATION_DIR / "verification.json").exists():
+        previous = json.loads((VALIDATION_DIR / "verification.json").read_text(encoding="utf-8"))
+        if previous["status"] == "FAIL" and not (VALIDATION_DIR / "verification_initial_scope_failure.json").exists():
+            dump_json(VALIDATION_DIR / "verification_initial_scope_failure.json", previous)
+    dump_json(VALIDATION_DIR / "verification.json", report)
     print(json.dumps({"status": report["status"], "checks": report["checks"],
                       "error": report["empirical_error"], "sensitivity": report["boundary_sensitivity"]},
                      ensure_ascii=False, indent=2))

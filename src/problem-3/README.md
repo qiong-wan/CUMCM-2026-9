@@ -1,12 +1,14 @@
 # 第三问复现与交付
 
-目录导航：先看[文件分类与用途](../../output/problem-3/文件分类与用途.md)，了解代码、正式结果、计算证据及辅助文件的区别；只查看成果可从[输出目录索引](../../output/problem-3/README.md)进入。
+目录导航：先看[文件分类与用途](文件分类与用途.md)，模型与代码问题见[代码审查报告](问题3_代码审查报告_GPT.md)；只查看计算成果可从[输出目录索引](../../output/problem-3/README.md)进入。
 
-全部计算从均匀初值 28°C、2.55 kg/kg 重新开始，附录 3 局部物性、固定半径 0.02 m、长度 0.25 m。主方案在 14400 s 后同时固定末次温度和环境水分浓度，均值情景仅替换观测区间之后的边界。详细推导见[模型与算法说明](../../output/problem-3/模型与算法说明.md)，计算结果和全部证据见 `../../output/problem-3/结果与验证.md`。
+全部计算从均匀初值 28°C、2.55 kg/kg 重新开始，附录 3 局部物性、固定半径 0.02 m、长度 0.25 m。主方案在 14400 s 后同时固定末次温度和环境水分浓度，均值情景仅替换观测区间之后的边界。详细推导见[模型与算法说明](模型与算法说明.md)，计算结果和全部证据见 `../../output/problem-3/结果与验证.md`。
+
+当前新增的合并入口及随机模型仍存在审查报告列出的未解决问题，下列原流程命令不代表新版本已完成整套验收。本次仅统一图中文字和输出路径；审查报告保留原审查时的证据，不表示其中其余问题已经修复。
 
 ## 运行环境
 
-Python 3.11+，NumPy、SciPy、openpyxl（只读输入与复核）、Matplotlib；具体执行版本记录在 `output/problem-3/run_environment.json`。工作簿由 Node.js 的 `@oai/artifact-tool` 从原模板导入、扩展、导出；本机已经建立仅位于第三问目录中的 `node_modules` 联接，指向 Codex 提供的运行库，不修改依赖目录。
+Python 3.11+，NumPy、SciPy、openpyxl（只读输入与复核）、Matplotlib；具体执行版本记录在 `output/problem-3/data/run_environment.json`。工作簿由 Node.js 的 `@oai/artifact-tool` 从原模板导入、扩展、导出；本机已经建立仅位于第三问目录中的 `node_modules` 联接，指向 Codex 提供的运行库，不修改依赖目录。
 
 在 `D:/CUMCM/Solution` 运行完整流程：
 
@@ -44,21 +46,37 @@ python -B -X utf8 src/problem-3/verify_problem3.py --workbook
 | `deliver_problem3.py` | 从通过验收的 production 解生成表 5、未舍入载荷、4 幅科学图表、计算结果报告 |
 | `build_workbook.mjs` | 保留 Sheet1/A1，扩展为 21 个距离列，保持数值并设置四位小数显示 |
 | `run_all.py` | 串联上述流程，失败立即退出 |
+| `generate_figures.py` | 独立读取保存案例，重新生成中文图像 |
+| `ensemble_problem3.py` | 随机环境试算及中文样本图，保留现有计算逻辑 |
+| `plot_style.py` | 统一中文字体、负号及 SVG 字形嵌入 |
+| `review/verify_presentation.py` | 核心代码与数值文件哈希、绘图数据和中文字形回归检查 |
 
-本目录只保留代码、运行说明、忽略规则及必要的本地依赖联接。模型文档、分类索引和图像均归入 `output/problem-3/`；图像检查副本位于其 `previews/` 子目录。绘图字体缓存使用输出目录内的临时目录并在进程退出时清理；工作簿导出后移除自动产生的冗长 NDJSON 诊断。
+本目录按前两问约定保存代码、模型推导、审查文档、运行说明、分类索引及必要配置。[视觉审查记录](review/visual_verification.md)与审查脚本放在 `review/`。计算结果、原始测试记录和图像放在 `output/problem-3/`；科学图统一位于其 `image/` 子目录，工作簿预览及直接由 Figure 生成的中文 JPEG 核查图位于 `image/previews/`。
 
 ## 主要交付文件
 
 - `output/problem-3/result3.xlsx`：唯一的提交工作簿，仅水分浓度 Sheet1；单位秒、cm、kg/kg；末尾包含明确的非规则实际结束行。
 - `output/problem-3/table5.md`、`table5_moisture.csv`：每 6 h 加结束行，后者保留完整精度。
-- `output/problem-3/结果与验证.md`、`verification.json`：结论、误差、边界敏感性与实际执行状态。
-- `output/problem-3/workbook_verification.json`：全部 Excel 格值/格式/时间/表头和表 5 一致性复核。
-- `output/problem-3/production.npz`：同一主解的未舍入状态、输出数组、完整检查截面和累计诊断。
-- `output/problem-3/production_event_seed.npz`：事件前未舍入完整状态，支持局部重算。
-- `output/problem-3/derived_boundaries.csv`、`input_audit.json`：环境派生结果和原始输入审计。
-- `output/problem-3/drying_history.svg`、`radial_profiles.svg`、`temperature_and_environment.svg`、`convergence.svg`：科学图表。
+- `output/problem-3/结果与验证.md`、`output/problem-3/review/verification.json`：结论、误差、边界敏感性与实际执行状态。
+- `output/problem-3/review/workbook_verification.json`：全部 Excel 格值/格式/时间/表头和表 5 一致性复核。
+- `output/problem-3/cases/production.npz`：同一主解的未舍入状态、输出数组、完整检查截面和累计诊断。
+- `output/problem-3/cases/production_event_seed.npz`：事件前未舍入完整状态，支持局部重算。
+- `output/problem-3/data/derived_boundaries.csv`、`output/problem-3/data/input_audit.json`：环境派生结果和原始输入审计。
+- `output/problem-3/image/` 中的 `drying_history`、`radial_profiles`、`temperature_and_environment`、`convergence`（SVG/PNG）：科学图表。
 
-其余必要的 `space*.npz/json`、`time12800quarter*.npz/json`、`mean12800*.npz/json` 为独立运行证据。`output/problem-3/previews/` 保存此前视觉核查使用的图像，后续导出也写入该目录；没有重新读取 output 下的 PNG。已清理不参与正式流程的 `time6400half`、`mean6400` 早期案例、题目临时截图和冗余诊断缓存。原始题目、附件、模板、前两问、公共模块不写回。`production` 对应正式主解，`space12800` 是相同空间网格但时间步较粗的研究案例，两者不能混用。
+`output/problem-3/cases/` 下其余必要的 `space*.npz/json`、`time12800quarter*.npz/json`、`mean12800*.npz/json` 为独立运行证据。`output/problem-3/image/previews/` 保存此前视觉核查使用的图像，后续导出也写入该目录；没有重新读取 output 下的 PNG。已清理不参与正式流程的 `time6400half`、`mean6400` 早期案例、题目临时截图和冗余诊断缓存。原始题目、附件、模板、前两问、公共模块不写回。`production` 对应正式主解，`space12800` 是相同空间网格但时间步较粗的研究案例，两者不能混用。
+
+## 仅重新绘图与整理验证
+
+```powershell
+python -B -X utf8 src/problem-3/generate_figures.py --require-full --no-stochastic
+python -B -X utf8 src/problem-3/review/verify_presentation.py
+python -B -X utf8 src/problem-3/review/verify_layout.py
+```
+
+独立绘图从 `cases/`、`data/`、`review/` 读取已有解和验证记录，不重算烘干过程。省略 `--no-stochastic` 时沿用原有规则，仅在实际随机数据存在时追加每个种子的图。中文字体依次查找 Microsoft YaHei、SimHei、Noto Sans CJK SC、Source Han Sans SC；缺少可用字体时明确报错。SVG 嵌入字形，换机查看不依赖本机字体安装。
+
+本次检查基线位于 `output/problem-3/review/presentation_before.json`；`--capture` 仅用于建立新的整理前基线，已有基线会拒绝覆盖。具体执行范围见 [中文图与目录整理验证](review/中文图与目录整理验证.md)。
 
 ## NPZ 数组约定
 

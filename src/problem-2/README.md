@@ -37,6 +37,20 @@ python src/problem-2/generate_figures.py
 `--skip-convergence` 只生成前四张分布图。布局检查预览位于项目的
 `tmp/problem2_figure_previews/`。
 
+圆柱截面图单独运行：
+
+```bash
+python src/problem-2/generate_cross_sections.py
+```
+
+默认5列4行，前两行温度、后两行干基含水率，同一变量共用色标。
+每种变量按行依次展示10、20、30、40、50、60、90、120、150、180 min。
+输出 `image/fig8_cross_sections_10times.png`、SVG及十时刻截面图说明、校验清单。
+截面由工作簿的21个径向节点线性插值并按轴对称展开，属于显示映射。
+`--times-s`可选择3个或10个递增时刻（单位s，限前3小时）。
+用 `--times-s 1800 5400 10800` 可复现原来的2行3列图，输出名为
+`fig7_cross_sections`，与十时刻版本分别保存。
+
 ## 输出
 
 | 文件 | 内容 |

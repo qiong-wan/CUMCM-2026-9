@@ -33,7 +33,7 @@ def main():
               ("time12800quarter", 12800, .25, "last"),
               ("mean12800", 12800, .5, "mean30")]
     for name, n, factor, mode in cases:
-        if args.resume and all((OUT / f"{name}{suffix}").exists()
+        if args.resume and all((OUT / "cases" / f"{name}{suffix}").exists()
                                for suffix in [".json", ".npz", "_event_seed.npz"]):
             print(f"Reusing explicitly requested case: {name}", flush=True)
             continue

@@ -6,7 +6,9 @@ import { FileBlob, SpreadsheetFile } from '@oai/artifact-tool';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
 const out = path.join(root, 'output/problem-3');
-const previews = path.join(out, 'previews');
+const previews = path.join(out, 'image/previews');
+const review = path.join(out, 'review');
+await fs.mkdir(review, { recursive: true });
 await fs.mkdir(previews, { recursive: true });
 const workbook = await SpreadsheetFile.importXlsx(
   await FileBlob.load(path.join(root, 'data/附件3/result3.xlsx')),
@@ -18,7 +20,7 @@ if (process.argv.includes('--preview-template')) {
   const preview = await workbook.render({ sheetName: 'Sheet1', range: 'A1:F5', scale: 2 });
   await fs.writeFile(path.join(previews, 'template_preview.png'), new Uint8Array(await preview.arrayBuffer()));
 } else {
-  const payload = JSON.parse(await fs.readFile(path.join(out, 'workbook_payload.json'), 'utf8'));
+  const payload = JSON.parse(await fs.readFile(path.join(out, 'data/workbook_payload.json'), 'utf8'));
   if (sheet.getRange('A1').values[0][0] !== payload.header[0]) throw new Error('Template A1 mismatch');
   const last = payload.rows.length + 1;
   sheet.getUsedRange().clear({ applyTo: 'contents' });
@@ -50,6 +52,6 @@ if (process.argv.includes('--preview-template')) {
   const result = await SpreadsheetFile.exportXlsx(workbook);
   await result.save(path.join(out, 'result3.xlsx'));
   await fs.rm(path.join(out, 'result3.xlsx.inspect.ndjson'), { force: true });
-  await fs.writeFile(path.join(out, 'artifact_inspection.txt'), checks.join('\n'));
+  await fs.writeFile(path.join(review, 'artifact_inspection.txt'), checks.join('\n'));
   console.log(`Exported Sheet1: ${last} rows, 22 columns; final time ${payload.rows.at(-1)[0]} s`);
 }

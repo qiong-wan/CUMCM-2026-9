@@ -1,6 +1,6 @@
 # 图表与工作簿视觉核查
 
-2026-09-11，原视觉核查实际查看了以下预览，当时位于 `src/problem-3/`。按用户后续目录整理要求，7 张预览已统一迁移至 `output/problem-3/previews/`，生成路径也已更新。下表保留原核查结果；此次文件整理未重新进行视觉核查（SKIPPED），未读取 output 下的 PNG。
+2026-09-11，原视觉核查实际查看了以下预览，当时位于 `src/problem-3/`。按用户后续目录整理要求，科学图已归类至 `output/problem-3/image/`，三张工作簿预览位于其 `previews/` 子目录。下表保留原核查时的文件名和结果；当前中文图另见[中文图与目录整理验证](中文图与目录整理验证.md)。本次没有读取 output 下的 PNG。
 
 | 预览 | 实际检查 | 结果 |
 |---|---|---|
@@ -12,4 +12,4 @@
 | `temperature_and_environment_qa.png` | 材料温度与环境波动、观测终点及派生边界，标签无截断 | PASS |
 | `convergence_qa.png` | 空间与时间加密分开展示，轴单位、刻度和标题完整 | PASS |
 
-科学图的正式交付为同名 SVG，PNG 是绘制同一 Figure 时生成的核查副本。工作簿最终版本已在统一扩展行对齐后再次渲染和查看。数值真实性、严格阈值和逐格一致性由 `verification.json` 与 `workbook_verification.json` 单独验证，视觉检查不替代数值检查。
+科学图的正式交付为同名 SVG，PNG 是绘制同一 Figure 时生成的核查副本。工作簿最终版本已在统一扩展行对齐后再次渲染和查看。数值真实性、严格阈值和逐格一致性由 `output/problem-3/review/verification.json` 与 `output/problem-3/review/workbook_verification.json` 单独验证，视觉检查不替代数值检查。

@@ -1,0 +1,253 @@
+{
+  "scope": "Review only: short numerical runs and isolated fault probes",
+  "source_sha256": {
+    "src\\problem-3\\deliver_problem3.py": "72c600dfa9125b871e799479101d5d654a8f086a09346af54c12a218e7a2681f",
+    "src\\problem-3\\ensemble_problem3.py": "31270e1a5a2aa172b4051a05fabf1761da4f8280369526c40dd831c5b17e3a0c",
+    "src\\problem-3\\generate_figures.py": "da459f62e5729d187990f5d2b5ced8ac096c44d3271a9d58f546ac9c905caa8f",
+    "src\\problem-3\\run_all.py": "df27b04db5369544a9a5e7e01a64cd9995fc1f41fc330c69280bf4a04e0d67ab",
+    "src\\problem-3\\solve_problem3.py": "81510f87cf08692b5d488ebbb70ee15495fab201e708c8911607fb2c2db86af0",
+    "src\\problem-3\\verify_problem3.py": "4d5da7ce26581dcb103d5dcb7b094028e7f9b0e16a91b8e9ee6a2c21a7644aae",
+    "src\\problem-3\\build_workbook.mjs": "833f2dca425a982188417692b8ba4ed40520f903eef60edae9131204b5f65d44"
+  },
+  "git_head": "373083f371d133e6c96a42e41ad32c70fe4b8a30",
+  "observations": {
+    "shape": [
+      241,
+      3
+    ],
+    "header": [
+      "时间",
+      "温度",
+      "水分浓度"
+    ],
+    "finite": true,
+    "missing": 0,
+    "unique_times": 241,
+    "intervals": [
+      60.0
+    ],
+    "first": [
+      0.0,
+      28.0,
+      0.01963
+    ],
+    "last": [
+      14400.0,
+      50.165,
+      0.04986
+    ]
+  },
+  "core_ast_identical_to_HEAD": {
+    "properties": true,
+    "Solver": true,
+    "refine_event": true
+  },
+  "python_syntax": {
+    "deliver_problem3.py": "PASS",
+    "ensemble_problem3.py": "PASS",
+    "generate_figures.py": "PASS",
+    "run_all.py": "PASS",
+    "solve_problem3.py": "PASS",
+    "verify_problem3.py": "PASS"
+  },
+  "synthetic_and_BDF": {
+    "uniform_equilibrium_error": 0.0,
+    "closed_boundary_flux_sum": 0.0,
+    "variable_coefficient_flux_balance": 0.0,
+    "nonconvergence_raises": true,
+    "zero_C_rejected": true,
+    "negative_C_rejected": true,
+    "nan_C_rejected": true,
+    "D_initial_m2_s": 5.641680373025668e-09,
+    "independent_BDF_success": true,
+    "independent_BDF_field_error": [
+      2.3686048677973304e-09,
+      9.59485424445461e-09
+    ],
+    "independent_BDF_scope": "N=100, 0..60 s, independent time integration, shared spatial operator",
+    "status": "PASS",
+    "zeroed_boundary_counterexample_relative_defect": 1.0,
+    "zeroed_boundary_counterexample_status": "PASS"
+  },
+  "deterministic_60s_regression": {
+    "N": 400,
+    "factor": 0.5,
+    "full_state_max_abs_difference": 0.0,
+    "delivery_max_abs_difference": 0.0,
+    "mass_relative_defect": 8.195043764685356e-16,
+    "heat_relative_defect": 3.624906038956808e-13
+  },
+  "new_case_loader_on_existing_tree": {
+    "exception": "FileNotFoundError",
+    "message": "[Errno 2] No such file or directory: 'D:\\\\CUMCM\\\\Solution\\\\output\\\\problem-3\\\\cases\\\\production.npz'"
+  },
+  "path_contract": {
+    "new_case_dir": "D:\\CUMCM\\Solution\\output\\problem-3\\cases",
+    "new_delivery_dir": "D:\\CUMCM\\Solution\\output\\problem-3\\delivery",
+    "legacy_case_exists": true,
+    "js_export_dir": "output/problem-3",
+    "new_verifier_export_dir": "output/problem-3/delivery",
+    "model_doc_actual": "D:\\CUMCM\\Solution\\src\\problem-3\\模型与算法说明.md",
+    "model_doc_required_by_new_verifier": "D:\\CUMCM\\Solution\\src\\problem-3\\模型与算法说明.md"
+  },
+  "legacy_resume_control_flow": {
+    "executed_python_stages_mocked": [
+      [
+        "solve_problem3.py",
+        "--audit"
+      ],
+      [
+        "verify_problem3.py"
+      ],
+      [
+        "deliver_problem3.py"
+      ],
+      [
+        "verify_problem3.py",
+        "--workbook"
+      ]
+    ],
+    "solver_case_calls": 0,
+    "legacy_cases_reused": 9
+  },
+  "new_workbook_reader_missing_new_export": {
+    "exception": "FileNotFoundError",
+    "message": "[Errno 2] No such file or directory: 'D:\\\\CUMCM\\\\Solution\\\\output\\\\problem-3\\\\review\\\\probes-9hmj6jx5\\\\delivery\\\\result3.xlsx'"
+  },
+  "model_document_read_after_relocation": {
+    "exception": null,
+    "return_type": "NoneType"
+  },
+  "reduced_report_partial_delivery": {
+    "exception": "RuntimeError",
+    "message": "verification.json is reduced (missing ['boundary_sensitivity', 'empirical_error', 'space_convergence', 'time_convergence']); run the full convergence and sensitivity study before delivery",
+    "files_after_rejection": [
+      "derived_boundaries.csv",
+      "moisture_60s_full_precision.csv",
+      "table5.md",
+      "table5_moisture.csv",
+      "workbook_payload.json"
+    ]
+  },
+  "source_change_and_reduced_verification_gate": {
+    "fixture": "Control-flow probe, cached numerical checks; not a new numerical verification",
+    "status": "PASS",
+    "scope": {
+      "convergence_study": false,
+      "sensitivity_study": false,
+      "delivery_ready": false
+    },
+    "protected_files": {
+      "status": "FAIL",
+      "checked": 1,
+      "changed": [
+        "src/problem-3/solve_problem3.py"
+      ],
+      "critical_model_inputs_status": "PASS",
+      "critical_model_inputs_changed": [],
+      "external_change_note": "The task did not write previous-question files. Concurrent updates are retained and recorded; original baseline hashes are not replaced.",
+      "excluded": "Office lock files, bytecode and output PNGs (repository instruction)"
+    },
+    "skipped": {
+      "independent_full_duration_spatial_method": "SKIPPED",
+      "two_dimensional_end_faces": "SKIPPED",
+      "latent_heat_and_full_enthalpy_closure": "SKIPPED",
+      "validation_against_measured_material_fields": "SKIPPED",
+      "spatial_and_temporal_convergence": "SKIPPED",
+      "near_end_common_time_fields": "SKIPPED",
+      "boundary_convergence": "SKIPPED",
+      "mean_boundary_sensitivity": "SKIPPED"
+    },
+    "production_label": "PASS"
+  },
+  "changed_settings_resume": {
+    "requested_N": 400,
+    "requested_mode": "fluct",
+    "stored_N": 12800,
+    "stored_mode": "last",
+    "simulate_call_count": 0
+  },
+  "stochastic_reproducibility": {
+    "sample_times_s": [
+      14460.0,
+      15000.0,
+      18000.0,
+      86400.0,
+      200000.0
+    ],
+    "run_all_default_prod_seed": null,
+    "fixed_seed_max_difference": 0.0,
+    "seed_none_max_difference_by_channel": [
+      0.14598222277997053,
+      0.0002328170151832329
+    ],
+    "observed_interval_max_difference": 0.0,
+    "stats": {
+      "T": {
+        "mean": 50.01325806451613,
+        "sigma": 0.15542707016406462,
+        "acf1": -0.09201876690716117,
+        "slope_per_s": -4.448924731177681e-06
+      },
+      "C": {
+        "mean": 0.04998870967741936,
+        "sigma": 0.00012933385468523643,
+        "acf1": 0.015621585298307664,
+        "slope_per_s": -5.866935483870418e-08
+      }
+    },
+    "clipped_phi": {
+      "T": 0.0,
+      "C": 0.015621585298307664
+    },
+    "grid_nodes": 599761
+  },
+  "stochastic_boundary_benchmark": {
+    "queries_per_repeat": 200,
+    "seconds": {
+      "current": [
+        0.9274068999984593,
+        0.9126512000002549,
+        0.9115417000029993
+      ],
+      "equivalent": [
+        0.0006490999985544477,
+        0.0006656000005023088,
+        0.0006751999972038902
+      ]
+    },
+    "median_speed_ratio": 1371.1706720425236,
+    "equivalent_query_max_difference": 0.0,
+    "new_full_length_channel_arrays_per_query": 2,
+    "elements_per_channel_array": 599761
+  },
+  "figure_boundary_mismatch": {
+    "mean_case_curve_label": "Hold last observation",
+    "displayed_air_tail_label": "Air, last-value tail",
+    "displayed_air_tail_degC": 50.165,
+    "actual_case_mode": "mean30",
+    "actual_air_tail_degC": 50.01325806451613
+  },
+  "single_member_summary": {
+    "exception": "ValueError",
+    "message": "Out of range float values are not JSON compliant: nan",
+    "warning_messages": [
+      "Degrees of freedom <= 0 for slice",
+      "invalid value encountered in scalar divide"
+    ]
+  },
+  "existing_deterministic_grid_error_context": {
+    "scope": "Existing deterministic cases, not a new stochastic error estimate",
+    "space400_minus_production_s": 786.4077758789062
+  },
+  "unchanged_inputs_and_official_results": {
+    "status": "PASS",
+    "files_checked": 57
+  },
+  "not_executed": [
+    "full 12800-node recomputation",
+    "full stochastic ensemble",
+    "stochastic spatial/time convergence",
+    "visual inspection of output PNGs"
+  ]
+}

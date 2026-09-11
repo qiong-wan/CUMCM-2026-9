@@ -1,0 +1,62 @@
+{
+  "scope": "Output categorization only; numerical solver and full export not rerun",
+  "directory_constants": true,
+  "case_loaders_agree": {
+    "mean12800": true,
+    "production": true,
+    "space12800": true,
+    "space1600": true,
+    "space3200": true,
+    "space400": true,
+    "space6400": true,
+    "space800": true,
+    "time12800quarter": true
+  },
+  "new_workbook_reader": {
+    "status": "PASS",
+    "failures": [],
+    "rows_including_header": 3432,
+    "columns": 22,
+    "numeric_moisture_cells": 72051,
+    "maximum_roundtrip_difference": 0.0,
+    "format_errors": 0,
+    "regular_rows": 3430,
+    "extra_actual_end_time_s": 205810.32369384766,
+    "table5_checked_points": 50
+  },
+  "legacy_workbook_reader": {
+    "status": "PASS",
+    "failures": [],
+    "rows_including_header": 3432,
+    "columns": 22,
+    "numeric_moisture_cells": 72051,
+    "maximum_roundtrip_difference": 0.0,
+    "format_errors": 0,
+    "regular_rows": 3430,
+    "extra_actual_end_time_s": 205810.32369384766,
+    "table5_checked_points": 50
+  },
+  "resume_reuses_all_nine_cases": true,
+  "resume_probe_scope": "Control flow only; subprocesses mocked",
+  "python_syntax": {
+    "deliver_problem3.py": "PASS",
+    "ensemble_problem3.py": "PASS",
+    "generate_figures.py": "PASS",
+    "plot_style.py": "PASS",
+    "run_all.py": "PASS",
+    "solve_problem3.py": "PASS",
+    "verify_problem3.py": "PASS",
+    "review\\review_problem3.py": "PASS",
+    "review\\verify_layout.py": "PASS",
+    "review\\verify_presentation.py": "PASS"
+  },
+  "workbook_export_paths": true,
+  "local_links": {
+    "checked": 68,
+    "broken": []
+  },
+  "root_contains_only_deliverables": true,
+  "obsolete_output_directories_absent": true,
+  "full_solver_and_export": "SKIPPED",
+  "status": "PASS"
+}
