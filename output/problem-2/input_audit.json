@@ -1,0 +1,448 @@
+{
+  "source_sha256": {
+    "D:\\CUMCM\\Solution\\problem.pdf": "052d8014bff5727c019b72e44fdffaf5c145ce04050dd938baaf3527db331736",
+    "D:\\CUMCM\\A题\\A题.pdf": "052d8014bff5727c019b72e44fdffaf5c145ce04050dd938baaf3527db331736",
+    "D:\\CUMCM\\Solution\\data\\附件1.xlsx": "7ef32870abeef420b89560b2530ff60dfe4255917805151d89988d0311af9dd7",
+    "D:\\CUMCM\\A题\\附件\\附件1.xlsx": "7ef32870abeef420b89560b2530ff60dfe4255917805151d89988d0311af9dd7",
+    "D:\\CUMCM\\Solution\\data\\附件3\\result2.xlsx": "23b261b295c1b787d000eebbca6521c37075107b6fcf78724f8d395ce1798ff4",
+    "D:\\CUMCM\\A题\\附件\\附件3\\result2.xlsx": "23b261b295c1b787d000eebbca6521c37075107b6fcf78724f8d395ce1798ff4",
+    "D:\\CUMCM\\Solution\\src\\problem-1\\solve_problem1.py": "f99a3ba51b65d24eecaf9aed7c14f81b020f71959571fd857c249244268f3797",
+    "D:\\CUMCM\\Solution\\output\\problem-1\\result1.xlsx": "faee578d9fe31130fd89ae2278b3054f901297f4ad8bdbd0df61293d1d1949c9"
+  },
+  "source_copy_matches": [
+    {
+      "project_file": "problem.pdf",
+      "matches_original": true
+    },
+    {
+      "project_file": "data\\附件1.xlsx",
+      "matches_original": true
+    },
+    {
+      "project_file": "data\\附件3\\result2.xlsx",
+      "matches_original": true
+    }
+  ],
+  "ambient": {
+    "sheet": "Sheet1",
+    "dimensions": [
+      242,
+      3
+    ],
+    "headers": [
+      "时间",
+      "温度",
+      "水分浓度"
+    ],
+    "anomalies": [],
+    "observation_count": 241,
+    "time_range_s": [
+      0.0,
+      14400.0
+    ],
+    "time_steps_s": [
+      60.0
+    ],
+    "whole_file_min": [
+      0.0,
+      28.0,
+      0.01963
+    ],
+    "whole_file_max": [
+      14400.0,
+      50.246,
+      0.05025
+    ],
+    "problem2_observation_count": 181,
+    "problem2_excel_rows": [
+      2,
+      182
+    ],
+    "problem2_min": [
+      0.0,
+      28.0,
+      0.01963
+    ],
+    "problem2_max": [
+      10800.0,
+      50.246,
+      0.05025
+    ],
+    "temperature_decreasing_intervals": 95,
+    "moisture_decreasing_intervals": 80,
+    "selected_observations": [
+      {
+        "excel_row": 2,
+        "values": [
+          0.0,
+          28.0,
+          0.01963
+        ]
+      },
+      {
+        "excel_row": 32,
+        "values": [
+          1800.0,
+          41.513,
+          0.03307
+        ]
+      },
+      {
+        "excel_row": 62,
+        "values": [
+          3600.0,
+          47.485,
+          0.04272
+        ]
+      },
+      {
+        "excel_row": 92,
+        "values": [
+          5400.0,
+          49.116,
+          0.04728
+        ]
+      },
+      {
+        "excel_row": 122,
+        "values": [
+          7200.0,
+          49.852,
+          0.04894
+        ]
+      },
+      {
+        "excel_row": 152,
+        "values": [
+          9000.0,
+          50.163,
+          0.04981
+        ]
+      },
+      {
+        "excel_row": 182,
+        "values": [
+          10800.0,
+          50.195,
+          0.04977
+        ]
+      },
+      {
+        "excel_row": 242,
+        "values": [
+          14400.0,
+          50.165,
+          0.04986
+        ]
+      }
+    ],
+    "interpolation_at_observations_max_error": 0.0
+  },
+  "result2_template": {
+    "温度": {
+      "dimensions": [
+        5,
+        6
+      ],
+      "header": [
+        "时间\\到药材中心的距离",
+        0,
+        0.1,
+        0.2,
+        "…",
+        2
+      ],
+      "first_row": [
+        1,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "last_row": [
+        "…",
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "B2_number_format": "General",
+      "role": "Blank result cells and ellipses are template placeholders."
+    },
+    "水分浓度": {
+      "dimensions": [
+        5,
+        6
+      ],
+      "header": [
+        "时间\\到药材中心的距离",
+        0,
+        0.1,
+        0.2,
+        "…",
+        2
+      ],
+      "first_row": [
+        1,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "last_row": [
+        "…",
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "B2_number_format": "General",
+      "role": "Blank result cells and ellipses are template placeholders."
+    }
+  },
+  "problem1_code": {
+    "conflict_start_lines": [
+      31,
+      47,
+      68,
+      94,
+      128,
+      242,
+      251,
+      263,
+      286,
+      324,
+      340,
+      369,
+      502,
+      516,
+      547,
+      634,
+      644,
+      668
+    ],
+    "syntax_valid": false,
+    "syntax_error_line": 76,
+    "syntax_error": "invalid decimal literal"
+  },
+  "problem1_workbook": {
+    "温度": {
+      "dimensions": [
+        1802,
+        22
+      ],
+      "header": [
+        "时间/s",
+        0,
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1,
+        1.1,
+        1.2,
+        1.3,
+        1.4,
+        1.5,
+        1.6,
+        1.7,
+        1.8,
+        1.9,
+        2
+      ],
+      "first_row": [
+        0,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28
+      ],
+      "last_row": [
+        1800,
+        33.5754,
+        33.5832,
+        33.6068,
+        33.6461,
+        33.7012,
+        33.772,
+        33.8587,
+        33.9611,
+        34.0795,
+        34.2138,
+        34.3642,
+        34.5308,
+        34.7137,
+        34.9131,
+        35.1292,
+        35.3621,
+        35.6122,
+        35.8794,
+        36.164,
+        36.466,
+        36.7856
+      ],
+      "B2_number_format": "General",
+      "all_values_finite": true,
+      "field_range": [
+        28.0,
+        36.7856
+      ],
+      "unique_time_steps_s": [
+        1.0
+      ]
+    },
+    "水分浓度": {
+      "dimensions": [
+        1802,
+        22
+      ],
+      "header": [
+        "时间/s",
+        0,
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1,
+        1.1,
+        1.2,
+        1.3,
+        1.4,
+        1.5,
+        1.6,
+        1.7,
+        1.8,
+        1.9,
+        2
+      ],
+      "first_row": [
+        0,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.55
+      ],
+      "last_row": [
+        1800,
+        2.55,
+        2.55,
+        2.55,
+        2.55,
+        2.5499,
+        2.5497,
+        2.5494,
+        2.5486,
+        2.547,
+        2.544,
+        2.5383,
+        2.5282,
+        2.5109,
+        2.483,
+        2.4397,
+        2.3755,
+        2.2841,
+        2.1591,
+        1.9937,
+        1.7807,
+        1.5102
+      ],
+      "B2_number_format": "General",
+      "all_values_finite": true,
+      "field_range": [
+        1.5102,
+        2.55
+      ],
+      "unique_time_steps_s": [
+        1.0
+      ]
+    }
+  },
+  "appendix3_property_snapshots_not_predictions": [
+    {
+      "temperature_C": 28.0,
+      "moisture_kg_kg": 2.55,
+      "rho_kg_m3": 976.4,
+      "cp_J_kg_K": 3415.295774647887,
+      "k_W_m_K": 0.48295774647887324,
+      "D_m2_s": 5.641680373025668e-09,
+      "alpha_m2_s": 1.448281705704542e-07,
+      "Bi_heat": 1.0352872557596966,
+      "Bi_moisture": 2.836034468826014,
+      "dry_density_if_rho_is_wet": 275.0422535211268
+    },
+    {
+      "temperature_C": 50.0,
+      "moisture_kg_kg": 2.55,
+      "rho_kg_m3": 976.4,
+      "cp_J_kg_K": 3415.295774647887,
+      "k_W_m_K": 0.48295774647887324,
+      "D_m2_s": 1.347096821741582e-08,
+      "alpha_m2_s": 1.448281705704542e-07,
+      "Bi_heat": 1.0352872557596966,
+      "Bi_moisture": 1.1877394216782833,
+      "dry_density_if_rho_is_wet": 275.0422535211268
+    },
+    {
+      "temperature_C": 50.0,
+      "moisture_kg_kg": 0.15,
+      "rho_kg_m3": 669.2,
+      "cp_J_kg_K": 1806.8695652173913,
+      "k_W_m_K": 0.25956521739130434,
+      "D_m2_s": 8.001208146652625e-10,
+      "alpha_m2_s": 2.1466624526400237e-07,
+      "Bi_heat": 1.9262981574539364,
+      "Bi_moisture": 19.996980089430295,
+      "dry_density_if_rho_is_wet": 581.913043478261
+    }
+  ],
+  "scope": "Input audit and framework evidence only; no Problem 2 PDE solve.",
+  "all_inspected_files_unchanged": true
+}
