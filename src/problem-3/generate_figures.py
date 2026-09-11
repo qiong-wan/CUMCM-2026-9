@@ -12,10 +12,16 @@ spatial/temporal study.  Pass ``--require-full`` to demand the complete,
 PASS verification instead.
 
 When the stochastic ensemble data exists (``stochastic/ensemble`` and
-``stochastic/data``), one ``temperature_and_environment_seed{seed}`` figure is
-also written per seed, reconstructing the seeded AR(1) air temperature and
-moisture from the stored tail model without re-solving.  Use
-``--no-stochastic`` to skip them.
+``stochastic/data``), a ``temperature_and_environment_seed0`` figure is written
+for seed 0 by default (``--all-seeds`` generates every seed), reconstructing
+the seeded AR(1) air temperature and moisture from the stored tail model
+without re-solving.  Use ``--no-stochastic`` to skip it.
+
+Four analytical figures are also produced from the saved data: a space-time
+moisture heatmap with the 0.15 contour, a temperature-moisture phase portrait,
+a numerical-error/boundary-scenario budget, and solver balance/boundary
+diagnostics.  The spatial convergence figure has five mesh points and the
+temporal one now shows all three time-step levels (1x, 0.5x, 0.25x).
 
 Run::
 
@@ -32,7 +38,7 @@ from pathlib import Path
 import numpy as np
 
 from solve_problem3 import (CASES_DIR, FIGURES_DIR, OUT, ROOT, STOCHASTIC_DIR,
-                            VALIDATION_DIR, Environment, audit, load_case)
+                            VALIDATION_DIR, Environment, audit, compare, load_case)
 
 
 def _import_matplotlib():
@@ -128,13 +134,34 @@ def figures(data, mean_data, report, values):
 
     spatial, temporal = report.get("space_convergence"), report.get("time_convergence")
     if spatial and temporal:
-        fig, ax = plt.subplots(1, 2, figsize=(11.4, 4.1), layout="constrained")
-        ax[0].loglog([v["fine_N"] for v in spatial], [abs(v["event_difference_s"]) for v in spatial], "o-", color="#176c9b")
-        ax[0].set(xlabel="细网格区间数 N", ylabel="临界时间变化 (s)", title="空间加密（固定时间策略）")
-        ax[1].loglog([v["factors"][1] for v in temporal], [v["all_saved_fields"]["C_max_kg_kg"] for v in temporal], "o-", color="#a45178")
-        ax[1].set(xlabel="细网格时间倍率", ylabel="全场含水率差 (kg/kg)", title="时间加密（固定 N=12800）")
-        for a in ax:
-            a.grid(which="both", alpha=.2)
+        fig, ax = plt.subplots(1, 2, figsize=(11.8, 4.2), layout="constrained")
+        Ns = np.array([v["fine_N"] for v in spatial], dtype=float)
+        dts = np.array([abs(v["event_difference_s"]) for v in spatial])
+        order = float(-np.polyfit(np.log(Ns), np.log(dts), 1)[0])
+        ax[0].loglog(Ns, dts, "o-", color="#176c9b")
+        ax[0].set(xlabel="径向区间数 N", ylabel="相邻网格的临界时长差 |Δt*| (s)",
+                  title=f"空间网格收敛（实测阶 ≈ {order:.2f}）")
+        ax[0].grid(which="both", alpha=.2)
+        # Temporal refinement at three levels: 1x, 0.5x (production), 0.25x.
+        factors = [1.0, 0.5, 0.25]
+        names = ["space12800", "production", "time12800quarter"]
+        diffs = []
+        for name in names:
+            if name == "time12800quarter":
+                diffs.append(0.0)
+            else:
+                diffs.append(compare(name, "time12800quarter")["all_saved_fields"]["C_max_kg_kg"])
+        ax[1].plot(factors, [d * 1e6 for d in diffs], "o-", color="#a45178")
+        ax[1].invert_xaxis()
+        ax[1].set_xticks(factors)
+        ax[1].set_xticklabels(["1×", "0.5×\n(实际采用)", "0.25×"])
+        ax[1].set(xlabel="时间步倍率",
+                  ylabel=r"相对 0.25× 解的全场含水率最大差 ($10^{-6}$ kg/kg)",
+                  title="时间步收敛（三个倍率）")
+        for f, d in zip(factors, diffs):
+            ax[1].annotate(f"{d * 1e6:.3f}", (f, d * 1e6), textcoords="offset points",
+                           xytext=(0, 7), ha="center", fontsize=8)
+        ax[1].grid(alpha=.2)
         save_figure(fig, "convergence")
         made.append("convergence")
     return made
@@ -186,6 +213,171 @@ def stochastic_air_figures(values, seeds, tau_s, sigma_scale, end_s, dt_env=60.0
     return made
 
 
+def moisture_space_time(data):
+    """Space-time heatmap of the moisture field with the 0.15 contour."""
+    plt = _import_matplotlib()
+    plt.rcParams.update({"font.family": "sans-serif", "font.size": 10,
+                         "axes.spines.top": False, "axes.spines.right": False,
+                         "svg.fonttype": "none"})
+    import math
+    from matplotlib.colors import LinearSegmentedColormap, LogNorm
+    from matplotlib.ticker import NullFormatter
+    from scipy.interpolate import RectBivariateSpline
+    t = data["times"] / 3600.0
+    r = np.linspace(0.0, 2.0, data["outputs"].shape[2])
+    C = data["outputs"][:, 1, :]
+    end = float(t[-1])
+    # Refine the coarse 21-node radial field before plotting so the sharp 0.15
+    # colour transition does not show the radial grid as stair steps.
+    r_fine = np.linspace(0.0, 2.0, 201)
+    C_fine = np.clip(RectBivariateSpline(r, t, C.T, kx=3, ky=1)(r_fine, t), 0.0, 2.55)
+    lo, hi, ctr = 0.05, 2.55, 0.15
+    # Smooth diverging palette with the turning point at 0.15: orange-red below,
+    # blue above, blended through a pale band.  The turn is placed at the
+    # log-scale position of 0.15 so the colour-bar spacing stays logarithmic
+    # while its labels are unchanged.
+    pos = (math.log(ctr) - math.log(lo)) / (math.log(hi) - math.log(lo))
+    turn = pos * 0.985
+    cmap = LinearSegmentedColormap.from_list("dry_wet", [
+        (0.0, "#7f0000"), (turn * 0.45, "#d73027"), (turn * 0.80, "#f46d43"),
+        (turn, "#fdae61"), (min(turn + 0.008, 1.0), "#c6dbef"),
+        (turn + (1 - turn) * 0.10, "#9ecae1"), (turn + (1 - turn) * 0.28, "#6baed6"),
+        (turn + (1 - turn) * 0.50, "#3182bd"), (turn + (1 - turn) * 0.75, "#08519c"),
+        (1.0, "#08306b")])
+    norm = LogNorm(vmin=lo, vmax=hi)
+    yticks = np.round(np.arange(0.0, 2.01, 0.1), 1)
+    ylabels = ["0（中心）"] + [f"{y:.1f}" for y in yticks[1:]]
+    fig, ax = plt.subplots(1, 2, figsize=(12.4, 5.0), layout="constrained")
+    image = None
+    extent = [t[0], t[-1], r_fine[0], r_fine[-1]]
+    for a, title in [(ax[0], "含水率时空演化（全程）"), (ax[1], "含水率时空演化（末 8 h）")]:
+        # Interpolated image instead of cell shading to avoid a visible mesh.
+        image = a.imshow(C_fine, extent=extent, origin="lower", aspect="auto",
+                         cmap=cmap, norm=norm, interpolation="bilinear")
+        a.contour(t, r_fine, C_fine, levels=[ctr], colors="#111111", linewidths=1.4, linestyles="--")
+        a.axvline(end, color="#111111", linewidth=1.2)
+        a.set(xlabel="自烘干开始的时间 (h)", ylabel="半径 (cm)", title=title)
+        a.set_yticks(yticks)
+        a.set_yticklabels(ylabels, fontsize=7)
+    ax[1].set_xlim(end - 8, end)
+    # Repeat the text cues on the full-history panel as well.
+    ax[0].annotate("0.15 等值线", xy=(end * 0.50, 1.30), color="#111111", fontsize=9)
+    ax[0].annotate("中心最后达标", xy=(end, 0.0), xytext=(end * 0.50, 0.45),
+                   color="#111111", fontsize=9,
+                   arrowprops=dict(arrowstyle="->", color="#111111"))
+    ax[1].annotate("0.15 等值线", xy=(end - 4, 0.5), color="#111111", fontsize=9)
+    ax[1].annotate("中心最后达标", xy=(end, 0.0), xytext=(end - 7.6, 0.4),
+                   color="#111111", fontsize=9,
+                   arrowprops=dict(arrowstyle="->", color="#111111"))
+    cb = fig.colorbar(image, ax=ax, location="right", shrink=0.92, pad=0.015)
+    cb.set_label("干基含水率 (kg/kg)")
+    cb.set_ticks([0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 2.55])
+    cb.ax.set_yticklabels(["0.05", "0.1", "0.2", "0.5", "1.0", "2.0", "2.55"])
+    cb.ax.axhline(ctr, color="#111111", linewidth=1.2)
+    cb.ax.text(0.5, ctr, "0.15", transform=cb.ax.get_yaxis_transform(),
+               ha="center", va="bottom", color="#111111", fontsize=8)
+    cb.ax.yaxis.set_minor_formatter(NullFormatter())
+    save_figure(fig, "moisture_space_time")
+    return "moisture_space_time"
+
+
+def phase_portrait(data):
+    """Temperature-moisture phase trajectories coloured by elapsed time."""
+    plt = _import_matplotlib()
+    plt.rcParams.update({"font.family": "sans-serif", "font.size": 10,
+                         "axes.spines.top": False, "axes.spines.right": False,
+                         "svg.fonttype": "none"})
+    t = data["times"] / 3600.0
+    fig, ax = plt.subplots(1, 2, figsize=(11.6, 4.4), layout="constrained")
+    sc = None
+    for a, idx, name in [(ax[0], 0, "中心"), (ax[1], -1, "表面")]:
+        T, C = data["outputs"][:, 0, idx], data["outputs"][:, 1, idx]
+        sc = a.scatter(T, C, c=t, cmap="plasma", s=7, linewidths=0, rasterized=True)
+        a.axhline(0.15, color="#9f3546", linestyle="--", linewidth=1.2)
+        a.annotate("起点", (T[0], C[0]), textcoords="offset points", xytext=(6, 4), fontsize=9)
+        a.annotate("终点", (T[-1], C[-1]), textcoords="offset points", xytext=(-28, 6), fontsize=9)
+        a.set(xlabel="温度 (°C)", ylabel="干基含水率 (kg/kg)", title=f"{name}相轨迹（温度–含水率）")
+        a.grid(alpha=.2)
+    cb = fig.colorbar(sc, ax=ax, location="right", shrink=0.92, pad=0.015)
+    cb.set_label("自烘干开始的时间 (h)")
+    save_figure(fig, "phase_portrait")
+    return "phase_portrait"
+
+
+def error_budget(report):
+    """Log-scale bars comparing numerical error and scenario shift."""
+    plt = _import_matplotlib()
+    plt.rcParams.update({"font.family": "sans-serif", "font.size": 10,
+                         "axes.spines.top": False, "axes.spines.right": False,
+                         "svg.fonttype": "none"})
+    e = report.get("empirical_error", {})
+    s = report.get("boundary_sensitivity", {})
+    items = [
+        ("空间最细两级时长差", abs(e.get("space_last_difference_s", 0.0)), "#176c9b"),
+        ("空间外推剩余估计", abs(e.get("space_fine_residual_time_estimate_s", 0.0)), "#5aa0c8"),
+        ("时间最细两级时长差", abs(e.get("time_last_difference_s", 0.0)), "#247c56"),
+        ("保守数值误差尺度", abs(e.get("conservative_numeric_allowance_s", 0.0)), "#aa662e"),
+        ("边界情景差（末值 vs 末 30 min 均值）", abs(s.get("difference_s", 0.0)), "#c23b34"),
+    ]
+    items = items[::-1]
+    labels = [x[0] for x in items]
+    vals = [max(x[1], 1e-5) for x in items]
+    colors = [x[2] for x in items]
+    fig, ax = plt.subplots(figsize=(9.4, 4.4), layout="constrained")
+    bars = ax.barh(labels, vals, color=colors, alpha=.88)
+    ax.set_xscale("log")
+    ax.set(xlabel="时长尺度 (s，对数坐标)", title="数值误差与边界情景差异量级")
+    ax.grid(axis="x", which="both", alpha=.25)
+    for bar, val in zip(bars, vals):
+        ax.text(val * 1.18, bar.get_y() + bar.get_height() / 2, f"{val:.4g} s",
+                va="center", fontsize=9)
+    save_figure(fig, "error_budget")
+    return "error_budget"
+
+
+def solver_diagnostics(report):
+    """Discrete-balance defects and boundary reconstruction convergence."""
+    plt = _import_matplotlib()
+    plt.rcParams.update({"font.family": "sans-serif", "font.size": 10,
+                         "axes.spines.top": False, "axes.spines.right": False,
+                         "svg.fonttype": "none"})
+    names = ["space400", "space800", "space1600", "space3200", "space6400",
+             "space12800", "production"]
+    metas = [json.loads((CASES_DIR / f"{n}.json").read_text(encoding="utf-8")) for n in names]
+    x = np.arange(len(names))
+    width = 0.38
+    fig, ax = plt.subplots(1, 2, figsize=(12.8, 4.4), layout="constrained")
+    ax[0].bar(x - width / 2, [m["mass_relative_defect"] for m in metas], width,
+              label="水分独立平衡缺陷", color="#176c9b")
+    ax[0].bar(x + width / 2, [m["heat_relative_defect"] for m in metas], width,
+              label="变热容热平衡缺陷", color="#aa662e")
+    ax[0].axhline(1e-7, color="#c23b34", linestyle="--", linewidth=1, label="验收阈值 1e-7")
+    ax[0].set_yscale("log")
+    ax[0].set_xticks(x)
+    ax[0].set_xticklabels([n.replace("space", "N=") for n in names], rotation=30, ha="right")
+    ax[0].set(ylabel="相对缺陷（对数）", title="离散平衡缺陷（各案例）")
+    ax[0].legend(fontsize=8)
+    ax[0].grid(axis="y", which="both", alpha=.2)
+
+    bc = report.get("boundary_convergence", [])
+    Nvals = np.array([400, 800, 1600, 3200, 6400, 12800], dtype=float)
+    RT = np.array([b["delivery_abs_max_RT_RC_symT_symC"][0] for b in bc])
+    RC = np.array([b["delivery_abs_max_RT_RC_symT_symC"][1] for b in bc])
+    ax[1].loglog(Nvals, RT, "o-", color="#176c9b", label="热 Robin 残差 (W/m²)")
+    ax[1].loglog(Nvals, RC, "s-", color="#247c56", label="湿 Robin 残差 [(kg/kg)·m/s]")
+    ax[1].axhline(1e-3, color="#176c9b", linestyle=":", linewidth=1)
+    ax[1].axhline(1e-9, color="#247c56", linestyle=":", linewidth=1)
+    order = float(-np.polyfit(np.log(Nvals), np.log(RT), 1)[0])
+    ax[1].annotate(f"热 Robin 实测阶 ≈ {order:.2f}", xy=(Nvals[-1], RT[-1]),
+                   xytext=(Nvals[0] * 1.1, RT[-1] * 6), fontsize=9, color="#176c9b",
+                   arrowprops=dict(arrowstyle="->", color="#176c9b"))
+    ax[1].set(xlabel="径向区间数 N", ylabel="边界重构残差（对数）", title="边界重构收敛")
+    ax[1].legend(fontsize=8)
+    ax[1].grid(which="both", alpha=.2)
+    save_figure(fig, "solver_diagnostics")
+    return "solver_diagnostics"
+
+
 def main():
     """Regenerate figures from saved cases; partial data is allowed by default."""
     parser = argparse.ArgumentParser(description="Generate Problem 3 figures from saved cases.")
@@ -193,6 +385,8 @@ def main():
                         help="Require a PASS verification with spatial/temporal convergence.")
     parser.add_argument("--no-stochastic", action="store_true",
                         help="Skip the per-seed fluct air figures even when data exists.")
+    parser.add_argument("--all-seeds", action="store_true",
+                        help="Generate one fluct figure per seed; default is seed 0 only.")
     args = parser.parse_args()
     report = {}
     if (VALIDATION_DIR / "verification.json").exists():
@@ -206,13 +400,23 @@ def main():
     mean_data = load_case("mean12800")[0] if (CASES_DIR / "mean12800.npz").exists() else None
     values, _ = audit()
     made = figures(data, mean_data, report, values)
+    made.append(moisture_space_time(data))
+    made.append(phase_portrait(data))
+    if "empirical_error" in report:
+        made.append(error_budget(report))
+    if report.get("boundary_convergence"):
+        made.append(solver_diagnostics(report))
     skipped = [n for n in ("drying_history", "radial_profiles",
-                           "temperature_and_environment", "convergence") if n not in made]
+                           "temperature_and_environment", "convergence",
+                           "moisture_space_time", "phase_portrait",
+                           "error_budget", "solver_diagnostics") if n not in made]
     stochastic = []
     npz_path = STOCHASTIC_DIR / "ensemble" / "realizations.npz"
     tail_path = STOCHASTIC_DIR / "data" / "tail_model.json"
     if not args.no_stochastic and npz_path.exists() and tail_path.exists():
         seeds = np.load(npz_path)["seeds"].tolist()
+        if not args.all_seeds:
+            seeds = seeds[:1]  # by default only seed 0
         tail = json.loads(tail_path.read_text(encoding="utf-8"))
         stochastic = stochastic_air_figures(values, seeds, tail.get("tau_s"), tail["sigma_scale"],
                                            float(data["times"][-1]), tail.get("dt_env_s", 60.0))
