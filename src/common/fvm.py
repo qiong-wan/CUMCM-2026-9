@@ -33,22 +33,23 @@ def harmonic_mean(a, b, name: str = "quantity") -> np.ndarray:
 
     Raises
     ------
+    ValueError
+        If any input is negative or non-finite.
     FloatingPointError
-        If two strictly positive inputs produce a zero harmonic mean, i.e. the
-        diffusivity has underflowed to zero and the face conductance is not
-        representable.
+        If any input is exactly zero, i.e. the diffusivity/conductivity has
+        underflowed and the face conductance is not representable.
     """
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
-    denom = a + b
-    out = np.zeros_like(denom)
-    nz = denom > 0.0
-    out[nz] = 2.0 * a[nz] * b[nz] / denom[nz]
-    if np.any((out == 0.0) & (a > 0.0) & (b > 0.0)):
+    if not (np.all(np.isfinite(a)) and np.all(np.isfinite(b))):
+        raise ValueError(f"{name}: non-finite face value")
+    if np.any(a < 0.0) or np.any(b < 0.0):
+        raise ValueError(f"{name}: negative face value")
+    if np.any(a == 0.0) or np.any(b == 0.0):
         raise FloatingPointError(
-            f"{name}: harmonic mean underflowed to zero (diffusivity too small)"
+            f"{name}: zero face value (diffusivity/conductivity must stay positive)"
         )
-    return out
+    return 2.0 * a * b / (a + b)
 
 
 def build_geometry(N: int, R: float):
@@ -197,6 +198,10 @@ def load_ambient(path, t_required_end: float, t_required_start: float = 0.0):
     t = np.asarray(times, dtype=float)
     t_inf = np.asarray(temps, dtype=float)
     c_inf = np.asarray(moist, dtype=float)
+    if not (
+        np.all(np.isfinite(t)) and np.all(np.isfinite(t_inf)) and np.all(np.isfinite(c_inf))
+    ):
+        raise ValueError(f"{path} contains non-finite (NaN/inf) values")
     if np.any(np.diff(t) <= 0.0):
         raise ValueError(f"{path} times must be strictly increasing (no duplicates)")
     if t[0] > t_required_start + 1e-9:
@@ -235,5 +240,8 @@ def write_result_xlsx(path, r, T_hist, C_hist, header: str = "时间\\到药材�
         ws.append([header] + [float(d) for d in dist_cm])
         for i in range(1, data.shape[0]):
             ws.append([float(i)] + [round(float(v), 4) for v in data[i]])
+        for row in ws.iter_rows(min_row=2, min_col=2, max_col=len(dist_cm) + 1):
+            for cell in row:
+                cell.number_format = "0.0000"
     del wb["Sheet"]
     wb.save(path)

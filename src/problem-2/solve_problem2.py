@@ -34,10 +34,11 @@ quantified in ``verification.txt``.
 Numerics
 --------
 Node-centred finite volume, backward Euler in time, Picard iteration for the
-coupled nonlinearity.  The production grid is ``N_REF=1600`` (``dr = 0.0125 mm
-<= 0.025 mm``) sampled onto the required ``0.1 cm`` delivery grid.  An
-independent node finite-difference method with virtual nodes is used as a
-cross-check.
+coupled nonlinearity.  The production grid is ``N_REF=3200`` (``dr = 0.00625 mm
+<= 0.025 mm``) sampled onto the required ``0.1 cm`` delivery grid.  The time
+step is ramped: ``dt = 0.0025 s`` at the singular start-up, growing geometrically
+to ``dt = 0.03125 s``.  An independent node finite-difference method with virtual
+nodes is used as a cross-check.
 
 Run::
 
@@ -541,10 +542,13 @@ def balance_audit(res: dict) -> dict:
     Returns
     -------
     dict
-        ``mass_rel`` (exact C-balance residual), ``heat_scheme_rel``
-        (scheme energy residual), ``prop_heat`` and ``prop_heat_rel`` (the
-        non-conservative property-change term), ``latent`` / ``latent_rel``
-        (ignored latent heat versus boundary heat input).
+        ``mass_rel``: moisture balance against the accumulated boundary flux.
+        ``heat_scheme_rel``: energy balance of the discrete scheme.
+        ``prop_heat`` / ``prop_heat_rel``: variable-capacity residual of the
+        non-conservative ``rho*cp*dT/dt`` form (reference-zero dependent).
+        ``latent_wet`` / ``ratio_wet`` and ``latent_dry`` / ``ratio_dry``:
+        conditional latent-heat diagnostics under the wet-density and the
+        fixed dry-solid mass conventions, respectively.
     """
     e = res["e_tot"]
     c = res["c_tot"]
@@ -552,27 +556,43 @@ def balance_audit(res: dict) -> dict:
     acc_heat = res["acc_heat"]
     acc_moist = res["acc_moist"]
 
-    mass_rel = abs((c[-1] - c[0]) - acc_moist) / max(abs(c[-1] - c[0]), 1e-30)
+    # True moisture balance: total C change against the accumulated boundary
+    # flux (NOT against acc_moist, which is the same telescoping sum).
+    mass_delta = c[-1] - c[0]
+    mass_flux = res["moist_in"][-1]
+    mass_rel = abs(mass_delta - mass_flux) / max(abs(mass_delta), abs(mass_flux), 1e-30)
     heat_scheme_rel = abs(acc_heat - res["heat_in"][-1]) / max(abs(res["heat_in"][-1]), 1e-30)
 
     energy_change = e[-1] - e[0]
     prop_heat = energy_change - acc_heat
     prop_heat_rel = abs(prop_heat) / max(abs(energy_change), 1e-30)
 
-    water_lost = w[0] - w[-1]
-    latent = water_lost * 2.26e6 * np.pi * L
+    # Latent-heat diagnostics under two explicit, conditional mass conventions.
+    # (a) wet-bulk-density convention: water = sum V rho(C) C/(1+C).
+    # (b) model-consistent fixed dry-solid reference: dry mass from the initial
+    #     state, water = dry_mass * C.  This matches the effective-diffusion
+    #     equation, which is normalised by a constant dry-solid reference.
+    lv = 2.26e6
     heat_input = res["heat_in"][-1] * np.pi * L
-    latent_rel = latent / max(abs(heat_input), 1e-30)
+    water_wet = w[0] - w[-1]
+    latent_wet = water_wet * lv * np.pi * L
+    rho_d_ref = float(rho_of_C(C_INIT) / (1.0 + C_INIT))
+    water_dry = rho_d_ref * (c[0] - c[-1])
+    latent_dry = water_dry * lv * np.pi * L
     return {
         "mass_rel": mass_rel,
         "heat_scheme_rel": heat_scheme_rel,
         "energy_change": energy_change,
         "prop_heat": prop_heat,
         "prop_heat_rel": prop_heat_rel,
-        "water_lost": water_lost,
-        "latent": latent,
+        "rho_d_ref": rho_d_ref,
+        "water_wet": water_wet,
+        "latent_wet": latent_wet,
+        "ratio_wet": latent_wet / max(abs(heat_input), 1e-30),
+        "water_dry": water_dry,
+        "latent_dry": latent_dry,
+        "ratio_dry": latent_dry / max(abs(heat_input), 1e-30),
         "heat_input": heat_input,
-        "latent_rel": latent_rel,
     }
 
 
@@ -592,31 +612,65 @@ def _diff_stats(cur, prev, t_report=1800) -> dict:
     }
 
 
+def _table_diff(res, prev_tabs):
+    tabs = extract_tables(res["r"], res["T_hist"], res["C_hist"])
+    return (
+        float(np.max(np.abs(tabs[0] - prev_tabs[0]))),
+        float(np.max(np.abs(tabs[1] - prev_tabs[1]))),
+    )
+
+
 def grid_convergence(t_end=T_END_OUT, nsub=2) -> list[dict]:
     """Return per-refinement max differences between successive grids."""
     prev = None
+    prev_tabs = None
     rows = []
     for N in (400, 800, 1600, 3200):
         res = simulate(N=N, nsub=nsub, t_end=t_end, record=True)
         if prev is not None:
             row = {"N": N}
             row.update(_diff_stats((res["T_hist"], res["C_hist"]), prev))
+            row["tbl_dT"], row["tbl_dC"] = _table_diff(res, prev_tabs)
             rows.append(row)
         prev = (res["T_hist"], res["C_hist"])
+        prev_tabs = extract_tables(res["r"], res["T_hist"], res["C_hist"])
     return rows
 
 
-def temporal_convergence(t_end=T_END_OUT, N=400) -> list[dict]:
-    """Return per-refinement max differences between successive time steps."""
+def temporal_convergence(t_end=T_END_OUT, N=400, factors=(1, 2)) -> list[dict]:
+    """Ramped-schedule refinement study; differences isolate temporal error."""
     prev = None
+    prev_tabs = None
     rows = []
-    for nsub in (1, 2, 4):
-        res = simulate(N=N, nsub=nsub, t_end=t_end, record=True)
+    for factor in factors:
+        res = simulate(N=N, nsub=scaled_nsub(factor), t_end=t_end, record=True)
         if prev is not None:
-            row = {"nsub": nsub}
+            row = {"factor": factor}
             row.update(_diff_stats((res["T_hist"], res["C_hist"]), prev))
+            row["tbl_dT"], row["tbl_dC"] = _table_diff(res, prev_tabs)
             rows.append(row)
         prev = (res["T_hist"], res["C_hist"])
+        prev_tabs = extract_tables(res["r"], res["T_hist"], res["C_hist"])
+    return rows
+
+
+def startup_convergence(t_end=10.0, N=N_REF) -> list[dict]:
+    """Uniform-step refinement of the singular start-up (surface C at t=1 s)."""
+    rows = []
+    prev = None
+    for nsub in (400, 800, 1600, 3200):
+        res = simulate(N=N, nsub=nsub, t_end=t_end, record=True)
+        value = float(res["C_hist"][1, -1])
+        rows.append(
+            {
+                "dt": 1.0 / nsub,
+                "c1": value,
+                "diff": None if prev is None else abs(value - prev),
+            }
+        )
+        prev = value
+    ramp = simulate(N=N, nsub=production_nsub, t_end=t_end, record=True)
+    rows.append({"dt": DT_START, "c1": float(ramp["C_hist"][1, -1]), "diff": None})
     return rows
 
 
@@ -650,6 +704,11 @@ def verify_output_files(tab_t, tab_c) -> list[str]:
         for j, d in enumerate(expected_dist, start=2):
             if abs(float(ws.cell(1, j).value) - d) > 1e-12:
                 failures.append(f"{name}: header column {j} is not {d} cm")
+        if ws.cell(2, 2).number_format != "0.0000":
+            failures.append(
+                f"{name}: data number_format is {ws.cell(2, 2).number_format!r}, "
+                "expected '0.0000'"
+            )
         for i, t in enumerate(TABLE_TIMES_S):
             for j, d in enumerate(TABLE_DIST_CM):
                 col = 2 + int(round(d / 0.1))
@@ -659,7 +718,9 @@ def verify_output_files(tab_t, tab_c) -> list[str]:
     return failures
 
 
-def write_verification(res, audit, gc, tc, ind, full_summary=None, file_failures=None) -> list[str]:
+def write_verification(
+    res, audit, gc, tc, startup, ind, full_summary=None, file_failures=None, skipped=False
+) -> list[str]:
     """Compose and persist the verification report."""
     t_obs, t_inf_obs, c_inf_obs = load_ambient(DATA_FILE, PREHEAT_END_S)
     t_const = float(np.interp(PREHEAT_END_S, t_obs, t_inf_obs))
@@ -672,71 +733,112 @@ def write_verification(res, audit, gc, tc, ind, full_summary=None, file_failures
         "Properties from Appendix 3 (rho, cp, k depend on C; D depends on C and T).",
         "Convective coefficients from Appendix 2: h = 25 W/(m^2 K), h_m = 8e-7 m/s.",
         "Coupled by Picard iteration; backward-Euler time integration.",
-        f"Production grid: N = {res['N']}, dr = {res['dr']*1e3:.5f} mm "
-        f"(<= 0.025 mm), nsub = {res['nsub']} (dt = {1.0/res['nsub']:.3f} s).",
+        f"Production grid: N = {res['N']}, dr = {res['dr']*1e3:.5f} mm (<= 0.025 mm),",
+        f"time step ramped dt = {1.0/res['nsub_max']:.5f}..{1.0/res['nsub_min']:.5f} s "
+        f"(nsub = {res['nsub_min']}..{res['nsub_max']}).",
         "",
-        "Stage-switch logic",
+        "Ambient boundary",
         "-" * 72,
-        "附件1 covers 0..14400 s (preheating/equilibrium stage). For t <= 14400 s the",
-        "ambient is piecewise-linearly interpolated. For t > 14400 s the ambient is",
-        "frozen at the last measured values (constant-temperature drying stage):",
-        f"    T_inf = {t_const:.4f} degC, C_inf = {c_const:.5f} kg/kg.",
-        "The first 3 h reported here therefore lie entirely inside the preheating stage.",
+        "附件1 covers 0..14400 s. For the reported interval (0..10800 s) the ambient",
+        "is piecewise-linearly interpolated from the observations. The code also",
+        "supports t > 14400 s by freezing the ambient at the last measured value",
+        f"(T_inf = {t_const:.4f} degC, C_inf = {c_const:.5f} kg/kg) so the model can run",
+        "a full 2-3 day process; this extension does not affect the first 3 h. The",
+        "problem does not prescribe a physical preheating/constant switch time, so no",
+        "such boundary is asserted.",
         "",
         "Shrinkage assumption",
         "-" * 72,
         "R = 2 cm is held constant; 附件2 (radius vs time) is only used by Problem 4.",
         "",
-        "Grid convergence (nsub = 2, max |difference| on the 0.1 cm delivery grid)",
+        "Grid convergence (uniform nsub = 2, max |difference| on the 0.1 cm grid)",
         "-" * 72,
     ]
+    if skipped:
+        lines.append("    SKIPPED (--skip-verify)")
     for row in gc:
         lines.append(
             f"    N -> {row['N']:4d}:  whole max|dT|={row['dT']:.3e}, max|dC|={row['dC']:.3e} | "
-            f"t>=1800 s max|dT|={row['dT_win']:.3e}, max|dC|={row['dC_win']:.3e} | "
-            f"centre max|dC|={row['dC_center']:.3e}"
+            f"table max|dT|={row['tbl_dT']:.3e}, max|dC|={row['tbl_dC']:.3e} | "
+            f"t>=1800 s max|dC|={row['dC_win']:.3e}"
         )
     if gc:
         lines.append(
             f"    finest whole-field max|dC| = {gc[-1]['dC']:.3e} kg/kg "
             "(framework delivery target < 5e-5)."
         )
-    mono = (
-        all(gc[i]["dC_surf"] >= gc[i + 1]["dC_surf"] for i in range(len(gc) - 1))
-        and all(gc[i]["dC_center"] >= gc[i + 1]["dC_center"] for i in range(len(gc) - 1))
-        and all(gc[i]["dT_surf"] >= gc[i + 1]["dT_surf"] for i in range(len(gc) - 1))
-    )
-    lines.append(
-        "Surface and centre differences decrease monotonically with refinement: "
-        + ("PASS" if mono else "FAIL")
-    )
+    if not skipped:
+        mono = (
+            all(gc[i]["dC_surf"] >= gc[i + 1]["dC_surf"] for i in range(len(gc) - 1))
+            and all(gc[i]["dC_center"] >= gc[i + 1]["dC_center"] for i in range(len(gc) - 1))
+            and all(gc[i]["dT_surf"] >= gc[i + 1]["dT_surf"] for i in range(len(gc) - 1))
+        )
+        lines.append(
+            "Surface and centre differences decrease monotonically with refinement: "
+            + ("PASS" if mono else "FAIL")
+        )
 
     lines += [
         "",
-        "Temporal convergence (N = 400, max |difference| on the delivery grid)",
+        "Temporal convergence, ramped schedule (N = 400, same grid for all levels)",
         "-" * 72,
+        "    'factor k' multiplies every production nsub by k; differences isolate",
+        "    the temporal error because the spatial grid is fixed.",
     ]
+    if skipped:
+        lines.append("    SKIPPED (--skip-verify)")
     for row in tc:
         lines.append(
-            f"    nsub -> {row['nsub']:2d}:  whole max|dT|={row['dT']:.3e}, max|dC|={row['dC']:.3e} | "
-            f"surface max|dC|={row['dC_surf']:.3e} | centre max|dC|={row['dC_center']:.3e} | "
-            f"t>=1800 s max|dT|={row['dT_win']:.3e}, max|dC|={row['dC_win']:.3e}"
+            f"    factor {row['factor']}x:  whole max|dT|={row['dT']:.3e}, max|dC|={row['dC']:.3e} | "
+            f"table max|dT|={row['tbl_dT']:.3e}, max|dC|={row['tbl_dC']:.3e} | "
+            f"t>=1800 s max|dC|={row['dC_win']:.3e}"
+        )
+    if tc:
+        lines.append(
+            f"    finest temporal difference: max|dT|={tc[-1]['dT']:.3e} degC, "
+            f"max|dC|={tc[-1]['dC']:.3e} kg/kg (delivery target < 5e-5)."
+        )
+
+    lines += [
+        "",
+        "Start-up convergence (N = 3200, uniform dt, surface C at t = 1 s)",
+        "-" * 72,
+    ]
+    if skipped:
+        lines.append("    SKIPPED (--skip-verify)")
+    for row in startup:
+        diff = "       --" if row["diff"] is None else f"{row['diff']:.3e}"
+        lines.append(f"    dt = {row['dt']:.6f} s:  C(1 s, R) = {row['c1']:.10f}   diff = {diff}")
+    if startup:
+        lines.append(
+            f"    The production ramp starts at dt = {DT_START:.4f} s, so the delivered "
+            f"4-decimal value is stable."
         )
 
     lines += [
         "",
         "Global balance audit (t = 0..10800 s)",
         "-" * 72,
-        f"    C-balance relative error (scheme-exact) : {audit['mass_rel']:.3e}",
-        f"    Energy-balance relative error (scheme)  : {audit['heat_scheme_rel']:.3e}",
-        f"    Sensible energy change                  : {audit['energy_change']:.4e}",
-        f"    Property-change (non-conservative) term : {audit['prop_heat']:.4e} "
-        f"({audit['prop_heat_rel']:.2%} of sensible change)",
-        f"    Water lost                              : {audit['water_lost']:.4e} "
-        "(model units, per pi*L)",
-        f"    Boundary heat input                     : {audit['heat_input']:.4e} J",
-        f"    Ignored latent heat (L_v = 2.26e6 J/kg): {audit['latent']:.4e} J",
-        f"    Latent / heat-input ratio               : {audit['latent_rel']:.2f}",
+        f"    C-balance relative error (total change vs boundary flux) : {audit['mass_rel']:.3e}",
+        f"    Energy-balance relative error (scheme)                   : {audit['heat_scheme_rel']:.3e}",
+        f"    Sensible energy sum V a(C) T, endpoint difference        : {audit['energy_change']:.4e}",
+        f"    Variable-capacity residual (endpoint - storage integral) : {audit['prop_heat']:.4e}",
+        "      This residual changes with the temperature reference zero, so it is",
+        "      a diagnostic of the non-conservative rho*cp*dT/dt form, not a unique",
+        "      thermodynamic error.",
+        "",
+        "Conditional latent-heat diagnostics (model contains no latent heat)",
+        "-" * 72,
+        f"    Boundary heat input                                      : {audit['heat_input']:.4e} J",
+        f"    (a) wet-density convention: water lost = {audit['water_wet']:.4e} (per pi L),",
+        f"        latent = {audit['latent_wet']:.4e} J, ratio = {audit['ratio_wet']:.2f}",
+        f"    (b) fixed dry-solid convention: rho_d = {audit['rho_d_ref']:.2f} kg/m^3,",
+        f"        water lost = {audit['water_dry']:.4e} kg, latent = {audit['latent_dry']:.4e} J,",
+        f"        ratio = {audit['ratio_dry']:.2f}",
+        "    Both are conditional diagnostics, not measured physical gaps. The",
+        "    wet-density convention is inconsistent with a fixed dry-solid",
+        "    reference (it implies the dry mass grows ~27% over 3 h); the dry-solid",
+        "    convention is the one consistent with the effective-diffusion model.",
         "",
         "Surface Robin residuals (t >= 1 s, second-order one-sided gradient)",
         "-" * 72,
@@ -749,22 +851,33 @@ def write_verification(res, audit, gc, tc, ind, full_summary=None, file_failures
         "Energy-inconsistency discussion",
         "The energy equation rho(C) cp(C) dT/dt = div(k grad T) omits the latent heat",
         "of vaporisation because the problem supplies neither L_v nor a coupled",
-        "heat/mass coefficient. The table above shows the latent heat that the",
-        "removed water would require, relative to the heat actually supplied through",
-        "the surface. Because this term is absent, the model temperature is an upper",
-        "bound: a physically complete model would cool the material by this amount.",
-        "The property-change term is the second inconsistency: the",
-        "non-conservative form rho cp dT/dt is not a strict conservation law when",
-        "rho and cp vary with C. Both effects are reported, not hidden. The computed",
-        f"temperature stays in [{res['t_center'].min():.4f}, {res['t_surf'].max():.4f}] degC,",
-        "well above the physical floor set by the ambient air.",
+        "heat/mass coefficient. The conditional diagnostics above show that the",
+        "latent heat implied by the removed water is several times the boundary heat",
+        "input under either mass convention. This is a genuine limitation of the",
+        "prescribed decoupled closure, but it is not used to claim a specific",
+        "temperature error: without a full heat-and-mass transport model and a",
+        "consistent enthalpy reference, the implied cooling cannot be quantified",
+        "uniquely, and the temperature is not claimed to be a strict upper bound.",
+        "The variable-capacity residual likewise shows that rho*cp*dT/dt is not a",
+        "strict conservation law when rho and cp vary with C. Both effects are",
+        "reported as model limitations, not hidden.",
+        f"The computed temperature stays in [{res['t_center'].min():.4f}, "
+        f"{res['t_surf'].max():.4f}] degC, above the ambient floor.",
         "",
         "Independent cross-check: node finite differences with virtual nodes",
         "-" * 72,
-        f"    Grid N = {ind['N']}, nsub = {ind['nsub']} (same time discretisation for both).",
-        f"    max |dT| = {ind['max_dT']:.3e} degC   (acceptance < 1e-3)",
-        f"    max |dC| = {ind['max_dC']:.3e} kg/kg  (acceptance < 1e-3)",
-        f"    Result: {'PASS' if ind['max_dT'] < 1e-3 and ind['max_dC'] < 1e-3 else 'FAIL'}",
+    ]
+    if skipped:
+        lines.append("    SKIPPED (--skip-verify)")
+    else:
+        lines += [
+            f"    Grid N = {ind['N']}, nsub = {ind['nsub']} (same time discretisation for both).",
+            f"    max |dT| = {ind['max_dT']:.3e} degC   (acceptance < 1e-3)",
+            f"    max |dC| = {ind['max_dC']:.3e} kg/kg  (acceptance < 1e-3)",
+            f"    Result: {'PASS' if ind['max_dT'] < 1e-3 and ind['max_dC'] < 1e-3 else 'FAIL'}",
+        ]
+
+    lines += [
         "",
         "Output-file checks (result2.xlsx and Tables 3/4)",
         "-" * 72,
@@ -776,21 +889,64 @@ def write_verification(res, audit, gc, tc, ind, full_summary=None, file_failures
     else:
         lines.append("    result2.xlsx: 10801 rows x 22 columns, A1 exact, A = 1..10800 s,")
         lines.append("    header distances 0..2.0 cm, both sheets match Tables 3/4 to 4 decimals.")
+        lines.append("    Result cells carry Excel number_format '0.0000'.")
+
+    layout_ok = not file_failures
+    ind_ok = (not skipped) and ind["max_dT"] < 1e-3 and ind["max_dC"] < 1e-3
+    space_ok = bool(gc) and gc[-1]["dC"] < 5e-5 and gc[-1]["tbl_dC"] < 5e-5
+    time_ok = (
+        bool(tc)
+        and tc[-1]["dT"] < 5e-5
+        and tc[-1]["dC"] < 5e-5
+        and tc[-1]["tbl_dT"] < 5e-5
+        and tc[-1]["tbl_dC"] < 5e-5
+    )
+    startup_ok = bool(startup) and any(
+        r["diff"] is not None and r["diff"] < 5e-5 for r in startup
+    )
+
+    def mark(ok):
+        if skipped:
+            return "SKIPPED"
+        return "PASS" if ok else "FAIL"
 
     lines += [
         "",
-        "Acceptance summary",
+        "Acceptance summary (SKIPPED items are not counted as passed)",
         "-" * 72,
-        f"    1. result2.xlsx layout            : {'PASS' if not file_failures else 'FAIL'}",
-        "    2. Tables 3/4 match the numerics  : "
-        f"{'PASS' if not file_failures else 'FAIL'}",
-        f"    3. Independent method max|dT| < 1e-3 and max|dC| < 1e-3 : "
-        f"{'PASS' if ind['max_dT'] < 1e-3 and ind['max_dC'] < 1e-3 else 'FAIL'}",
-        "    4. Quantified latent-heat inconsistency reported        : PASS",
+        f"    1. result2.xlsx layout (10801x22, A1, 0.0000 format) : {mark(layout_ok)}",
+        f"    2. Tables 3/4 match the numerics to 4 decimals       : {mark(layout_ok)}",
+        f"    3. Independent method max|dT|, max|dC| < 1e-3         : {mark(ind_ok)}",
+        f"    4. Spatial delivery error < 5e-5 (N=3200)            : {mark(space_ok)}",
+        f"    5. Temporal delivery error < 5e-5 (ramped schedule)  : {mark(time_ok)}",
+        f"    6. Start-up surface C(1 s) stable to 4 decimals      : {mark(startup_ok)}",
+        "    7. Quantified latent-heat inconsistency reported     : PASS",
         "",
         f"Picard: max iterations = {res['picard_max_it']}, "
-        f"max residual = {res['picard_max_res']:.3e}.",
+        f"max adjacent-iteration change = {res['picard_max_res']:.3e}.",
     ]
+
+    failures = []
+    if not layout_ok:
+        failures.append("output layout / tables")
+    if not skipped:
+        if not ind_ok:
+            failures.append("independent cross-check")
+        if not space_ok:
+            failures.append("spatial delivery target")
+        if not time_ok:
+            failures.append("temporal delivery target")
+        if not startup_ok:
+            failures.append("start-up convergence")
+    lines.append("")
+    if skipped:
+        lines.append("STATUS: INCOMPLETE (verification skipped) - not a deliverable sign-off.")
+    elif failures:
+        lines.append("STATUS: FAIL - " + ", ".join(failures))
+    else:
+        lines.append("STATUS: PASS - all executed acceptance checks satisfied.")
+    res["_acceptance_failures"] = failures
+    res["_skipped"] = skipped
 
     if full_summary is not None:
         lines += [
@@ -865,15 +1021,18 @@ def main() -> None:
 
     if args.skip_verify:
         write_verification(
-            res, audit, [], [], {"N": 0, "nsub": 0, "max_dT": 0.0, "max_dC": 0.0},
-            file_failures=file_failures,
+            res, audit, [], [], [], {"N": 0, "nsub": 0, "max_dT": 0.0, "max_dC": 0.0},
+            file_failures=file_failures, skipped=True,
         )
+        print("Verification skipped (--skip-verify): result files written but NOT signed off.")
         return
 
     print("\nRunning grid convergence ...")
     gc = grid_convergence()
-    print("Running temporal convergence ...")
+    print("Running temporal convergence (ramped schedule) ...")
     tc = temporal_convergence()
+    print("Running start-up convergence ...")
+    startup = startup_convergence()
     print("Running independent FD cross-check ...")
     ind = independent_check()
 
@@ -882,8 +1041,11 @@ def main() -> None:
         print("Running full 3-day process ...")
         full_summary = run_full_process()
 
-    lines = write_verification(res, audit, gc, tc, ind, full_summary, file_failures)
+    lines = write_verification(res, audit, gc, tc, startup, ind, full_summary, file_failures)
     print("\n".join(lines))
+
+    if res.get("_acceptance_failures"):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

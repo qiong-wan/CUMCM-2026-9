@@ -5,48 +5,74 @@ Model: 1D axisymmetric cylinder, R = 2 cm, L = 25 cm (no shrinkage).
 Properties from Appendix 3 (rho, cp, k depend on C; D depends on C and T).
 Convective coefficients from Appendix 2: h = 25 W/(m^2 K), h_m = 8e-7 m/s.
 Coupled by Picard iteration; backward-Euler time integration.
-Production grid: N = 3200, dr = 0.00625 mm (<= 0.025 mm), nsub = 4 (dt = 0.250 s).
+Production grid: N = 3200, dr = 0.00625 mm (<= 0.025 mm),
+time step ramped dt = 0.00250..0.03125 s (nsub = 32..400).
 
-Stage-switch logic
+Ambient boundary
 ------------------------------------------------------------------------
-附件1 covers 0..14400 s (preheating/equilibrium stage). For t <= 14400 s the
-ambient is piecewise-linearly interpolated. For t > 14400 s the ambient is
-frozen at the last measured values (constant-temperature drying stage):
-    T_inf = 50.1650 degC, C_inf = 0.04986 kg/kg.
-The first 3 h reported here therefore lie entirely inside the preheating stage.
+附件1 covers 0..14400 s. For the reported interval (0..10800 s) the ambient
+is piecewise-linearly interpolated from the observations. The code also
+supports t > 14400 s by freezing the ambient at the last measured value
+(T_inf = 50.1650 degC, C_inf = 0.04986 kg/kg) so the model can run
+a full 2-3 day process; this extension does not affect the first 3 h. The
+problem does not prescribe a physical preheating/constant switch time, so no
+such boundary is asserted.
 
 Shrinkage assumption
 ------------------------------------------------------------------------
 R = 2 cm is held constant; 附件2 (radius vs time) is only used by Problem 4.
 
-Grid convergence (nsub = 2, max |difference| on the 0.1 cm delivery grid)
+Grid convergence (uniform nsub = 2, max |difference| on the 0.1 cm grid)
 ------------------------------------------------------------------------
-    N ->  800:  whole max|dT|=3.180e-06, max|dC|=8.650e-04 | t>=1800 s max|dT|=3.180e-06, max|dC|=3.030e-06 | centre max|dC|=1.665e-06
-    N -> 1600:  whole max|dT|=7.951e-07, max|dC|=2.017e-04 | t>=1800 s max|dT|=7.951e-07, max|dC|=7.574e-07 | centre max|dC|=4.162e-07
-    N -> 3200:  whole max|dT|=1.988e-07, max|dC|=4.881e-05 | t>=1800 s max|dT|=1.988e-07, max|dC|=1.894e-07 | centre max|dC|=1.041e-07
+    N ->  800:  whole max|dT|=3.180e-06, max|dC|=8.650e-04 | table max|dT|=2.060e-06, max|dC|=1.867e-06 | t>=1800 s max|dC|=3.030e-06
+    N -> 1600:  whole max|dT|=7.951e-07, max|dC|=2.017e-04 | table max|dT|=5.151e-07, max|dC|=4.668e-07 | t>=1800 s max|dC|=7.574e-07
+    N -> 3200:  whole max|dT|=1.988e-07, max|dC|=4.881e-05 | table max|dT|=1.288e-07, max|dC|=1.167e-07 | t>=1800 s max|dC|=1.894e-07
     finest whole-field max|dC| = 4.881e-05 kg/kg (framework delivery target < 5e-5).
 Surface and centre differences decrease monotonically with refinement: PASS
 
-Temporal convergence (N = 400, max |difference| on the delivery grid)
+Temporal convergence, ramped schedule (N = 400, same grid for all levels)
 ------------------------------------------------------------------------
-    nsub ->  2:  whole max|dT|=8.709e-04, max|dC|=1.859e-03 | surface max|dC|=1.859e-03 | centre max|dC|=3.120e-05 | t>=1800 s max|dT|=7.382e-04, max|dC|=4.569e-05
-    nsub ->  4:  whole max|dT|=4.356e-04, max|dC|=1.037e-03 | surface max|dC|=1.037e-03 | centre max|dC|=1.560e-05 | t>=1800 s max|dT|=3.691e-04, max|dC|=2.284e-05
+    'factor k' multiplies every production nsub by k; differences isolate
+    the temporal error because the spatial grid is fixed.
+    factor 2x:  whole max|dT|=2.709e-05, max|dC|=9.051e-06 | table max|dT|=2.296e-05, max|dC|=1.423e-06 | t>=1800 s max|dC|=1.423e-06
+    finest temporal difference: max|dT|=2.709e-05 degC, max|dC|=9.051e-06 kg/kg (delivery target < 5e-5).
+
+Start-up convergence (N = 3200, uniform dt, surface C at t = 1 s)
+------------------------------------------------------------------------
+    dt = 0.002500 s:  C(1 s, R) = 2.5198274866   diff =        --
+    dt = 0.001250 s:  C(1 s, R) = 2.5198227261   diff = 4.760e-06
+    dt = 0.000625 s:  C(1 s, R) = 2.5198203456   diff = 2.380e-06
+    dt = 0.000313 s:  C(1 s, R) = 2.5198191553   diff = 1.190e-06
+    dt = 0.002500 s:  C(1 s, R) = 2.5198274866   diff =        --
+    The production ramp starts at dt = 0.0025 s, so the delivered 4-decimal value is stable.
 
 Global balance audit (t = 0..10800 s)
 ------------------------------------------------------------------------
-    C-balance relative error (scheme-exact) : 3.947e-15
-    Energy-balance relative error (scheme)  : 2.625e-12
-    Sensible energy change                  : 1.2692e+04
-    Property-change (non-conservative) term : -1.3970e+04 (110.07% of sensible change)
-    Water lost                              : 8.9339e-02 (model units, per pi*L)
-    Boundary heat input                     : 2.0940e+04 J
-    Ignored latent heat (L_v = 2.26e6 J/kg): 1.5858e+05 J
-    Latent / heat-input ratio               : 7.57
+    C-balance relative error (total change vs boundary flux) : 8.706e-14
+    Energy-balance relative error (scheme)                   : 1.493e-12
+    Sensible energy sum V a(C) T, endpoint difference        : 1.2692e+04
+    Variable-capacity residual (endpoint - storage integral) : -1.3970e+04
+      This residual changes with the temperature reference zero, so it is
+      a diagnostic of the non-conservative rho*cp*dT/dt form, not a unique
+      thermodynamic error.
+
+Conditional latent-heat diagnostics (model contains no latent heat)
+------------------------------------------------------------------------
+    Boundary heat input                                      : 2.0940e+04 J
+    (a) wet-density convention: water lost = 8.9339e-02 (per pi L),
+        latent = 1.5858e+05 J, ratio = 7.57
+    (b) fixed dry-solid convention: rho_d = 275.04 kg/m^3,
+        water lost = 1.2844e-01 kg, latent = 2.2798e+05 J,
+        ratio = 10.89
+    Both are conditional diagnostics, not measured physical gaps. The
+    wet-density convention is inconsistent with a fixed dry-solid
+    reference (it implies the dry mass grows ~27% over 3 h); the dry-solid
+    convention is the one consistent with the effective-diffusion model.
 
 Surface Robin residuals (t >= 1 s, second-order one-sided gradient)
 ------------------------------------------------------------------------
-    max |R_T| = 3.273e-05 W/m^2
-    max |R_C| = 1.119e-10 (kg/kg) m/s
+    max |R_T| = 3.271e-05 W/m^2
+    max |R_C| = 5.178e-11 (kg/kg) m/s
     The initial corner is incompatible (uniform C but C_s != C_inf); the
     residual is therefore evaluated for t >= 1 s and decreases with mesh
     refinement rather than being zero on a finite grid.
@@ -54,15 +80,17 @@ Surface Robin residuals (t >= 1 s, second-order one-sided gradient)
 Energy-inconsistency discussion
 The energy equation rho(C) cp(C) dT/dt = div(k grad T) omits the latent heat
 of vaporisation because the problem supplies neither L_v nor a coupled
-heat/mass coefficient. The table above shows the latent heat that the
-removed water would require, relative to the heat actually supplied through
-the surface. Because this term is absent, the model temperature is an upper
-bound: a physically complete model would cool the material by this amount.
-The property-change term is the second inconsistency: the
-non-conservative form rho cp dT/dt is not a strict conservation law when
-rho and cp vary with C. Both effects are reported, not hidden. The computed
-temperature stays in [28.0000, 49.9664] degC,
-well above the physical floor set by the ambient air.
+heat/mass coefficient. The conditional diagnostics above show that the
+latent heat implied by the removed water is several times the boundary heat
+input under either mass convention. This is a genuine limitation of the
+prescribed decoupled closure, but it is not used to claim a specific
+temperature error: without a full heat-and-mass transport model and a
+consistent enthalpy reference, the implied cooling cannot be quantified
+uniquely, and the temperature is not claimed to be a strict upper bound.
+The variable-capacity residual likewise shows that rho*cp*dT/dt is not a
+strict conservation law when rho and cp vary with C. Both effects are
+reported as model limitations, not hidden.
+The computed temperature stays in [28.0000, 49.9664] degC, above the ambient floor.
 
 Independent cross-check: node finite differences with virtual nodes
 ------------------------------------------------------------------------
@@ -75,19 +103,25 @@ Output-file checks (result2.xlsx and Tables 3/4)
 ------------------------------------------------------------------------
     result2.xlsx: 10801 rows x 22 columns, A1 exact, A = 1..10800 s,
     header distances 0..2.0 cm, both sheets match Tables 3/4 to 4 decimals.
+    Result cells carry Excel number_format '0.0000'.
 
-Acceptance summary
+Acceptance summary (SKIPPED items are not counted as passed)
 ------------------------------------------------------------------------
-    1. result2.xlsx layout            : PASS
-    2. Tables 3/4 match the numerics  : PASS
-    3. Independent method max|dT| < 1e-3 and max|dC| < 1e-3 : PASS
-    4. Quantified latent-heat inconsistency reported        : PASS
+    1. result2.xlsx layout (10801x22, A1, 0.0000 format) : PASS
+    2. Tables 3/4 match the numerics to 4 decimals       : PASS
+    3. Independent method max|dT|, max|dC| < 1e-3         : PASS
+    4. Spatial delivery error < 5e-5 (N=3200)            : PASS
+    5. Temporal delivery error < 5e-5 (ramped schedule)  : PASS
+    6. Start-up surface C(1 s) stable to 4 decimals      : PASS
+    7. Quantified latent-heat inconsistency reported     : PASS
 
-Picard: max iterations = 4, max residual = 5.706e-12.
+Picard: max iterations = 3, max adjacent-iteration change = 7.617e-12.
+
+STATUS: PASS - all executed acceptance checks satisfied.
 
 Full 2-3 day process capability (--full)
 ------------------------------------------------------------------------
-    Ran to t = 259200 s (72.0 h) with N = 800, dt = 1.0 s in 258.1 s.
+    Ran to t = 259200 s (72.0 h) with N = 800, dt = 1.0 s in 259.1 s.
     Final centre moisture C(0) = 0.1374 kg/kg,
     final surface moisture C(R) = 0.0516 kg/kg,
     final centre temperature = 50.1650 degC.
