@@ -6,8 +6,11 @@ import json
 import os
 from pathlib import Path
 import platform
+from tempfile import TemporaryDirectory
 
-os.environ["MPLCONFIGDIR"] = str(Path(__file__).resolve().parents[2] / "output/problem-3/.mplconfig")
+_PLOT_CACHE = TemporaryDirectory(
+    prefix=".mpl-", dir=Path(__file__).resolve().parents[2] / "output/problem-3")
+os.environ["MPLCONFIGDIR"] = _PLOT_CACHE.name
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -15,14 +18,16 @@ import numpy as np
 import scipy
 import openpyxl
 
-from solve_problem3 import OUT, ROOT, R, Environment, audit, dump_json
+from solve_problem3 import OUT, R, Environment, audit, dump_json
 from verify_problem3 import load_case
 
 
 def save_figure(fig, name):
-    """Save an editable scientific SVG and a separate authorized QA raster."""
+    """Save the scientific SVG and QA raster under the output directory."""
+    previews = OUT / "previews"
+    previews.mkdir(exist_ok=True)
     fig.savefig(OUT / f"{name}.svg", bbox_inches="tight")
-    fig.savefig(ROOT / "src" / "problem-3" / f"{name}_qa.png", dpi=140, bbox_inches="tight")
+    fig.savefig(previews / f"{name}_qa.png", dpi=140, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -146,7 +151,7 @@ def main():
         "",
         f"主解使用 N={meta['N']} 个径向区间、{meta['N'] + 1} 个节点，网格宽 {R / meta['N'] * 1e6:.4f} μm，SDIRK2 二阶隐式积分，时间倍率 {meta['factor']}。名义步长上限在观测区间为 1 s，后段为 15 s；启动阶段更小，实际最小/最大步长为 {meta['step_range_s'][0]:.8g}/{meta['step_range_s'][1]:.8g} s。60 s 仅是交付间隔。共接受 {main_steps} 步，拒绝 {meta['rejected_steps']} 步，阶段最大迭代次数 {meta['max_iterations']}。",
         "",
-        "物性、初边值、完整推导、离散矩阵和每项指标定义见 `src/problem-3/模型与算法说明.md` 的连续编号公式（1）至（65）。内部不舍入，温度持续求解至结束。",
+        "物性、初边值、完整推导、离散矩阵和每项指标定义见 [模型与算法说明](模型与算法说明.md) 的连续编号公式（1）至（65）。内部不舍入，温度持续求解至结束。",
         "", "## 2. 全域事件与严格小于条件", "",
         "以下依据模型说明公式（30）、公式（31）、公式（51）至公式（53）。",
         "", "| 项目 | 实算值 |", "|---|---:|",
@@ -223,7 +228,7 @@ def main():
     result_lines += ["", "| 未执行验证 | 状态 |", "|---|---|"]
     result_lines += [f"| {name} | {status} |" for name, status in report["skipped"].items()]
     result_lines += ["",
-        f"共审计 {report['protected_files']['checked']} 个保护文件。关键模型输入（题目、原始附件、公共函数及第一问源码）哈希检查为 {report['protected_files']['critical_model_inputs_status']}。完整保护文件哈希比较为 **{report['protected_files']['status']}**：运行期间观察到其他工作的第二问文件更新，本问未写入这些文件，也没有覆盖首次哈希基线。数值验收 PASS 不覆盖这项外部文件不一致。初次阻止导出的记录另存 verification_initial_scope_failure.json。按项目要求没有读取 output 下的 PNG；图像 QA 副本保存在本问 src 目录。公式编号检查为 {report['formula_numbering']}，连续编号 1 至 65。",
+        f"共审计 {report['protected_files']['checked']} 个保护文件。关键模型输入（题目、原始附件、公共函数及第一问源码）哈希检查为 {report['protected_files']['critical_model_inputs_status']}。完整保护文件哈希比较为 **{report['protected_files']['status']}**：运行期间观察到其他工作的第二问文件更新，本问未写入这些文件，也没有覆盖首次哈希基线。数值验收 PASS 不覆盖这项外部文件不一致。初次阻止导出的记录另存 verification_initial_scope_failure.json。按项目要求没有读取 output 下的 PNG；原先在 src 完成核查的 QA 副本已归档至本输出目录 previews/，后续生成也使用该位置。公式编号检查为 {report['formula_numbering']}，连续编号 1 至 65。",
         "", "观察到变更的外部文件：" + "、".join(report['protected_files']['changed']) + "。",
         "",
         "模型仍采用有效传质势，未计相变潜热，质量与焓闭合不完整，忽略端面、收缩及材料不均匀性。没有计算确定的潜热缺口倍数，没有证明严格温度上界，也没有把端面面积比例当作模型误差。本次环境敏感性只是一个有明确窗口的对照，不是对未知未来环境的概率置信区间。",

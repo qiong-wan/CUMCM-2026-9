@@ -371,7 +371,7 @@ def main():
                           "two_dimensional_end_faces": "SKIPPED",
                           "latent_heat_and_full_enthalpy_closure": "SKIPPED",
                           "validation_against_measured_material_fields": "SKIPPED"}}
-    formula_doc = (ROOT / "src" / "problem-3" / "模型与算法说明.md").read_text(encoding="utf-8")
+    formula_doc = (OUT / "模型与算法说明.md").read_text(encoding="utf-8")
     numbers = [int(v) for v in re.findall(r"\\tag\{(\d+)\}", formula_doc)]
     report["formula_numbering"] = "PASS" if numbers == list(range(1, 66)) else "FAIL"
     before = json.loads((OUT / "protected_hashes_before.json").read_text(encoding="utf-8"))

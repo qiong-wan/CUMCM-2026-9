@@ -1,6 +1,8 @@
 # 第三问复现与交付
 
-全部计算从均匀初值 28°C、2.55 kg/kg 重新开始，附录 3 局部物性、固定半径 0.02 m、长度 0.25 m。主方案在 14400 s 后同时固定末次温度和环境水分浓度，均值情景仅替换观测区间之后的边界。详细推导见[模型与算法说明](模型与算法说明.md)，计算结果和全部证据见 `../../output/problem-3/结果与验证.md`。
+目录导航：先看[文件分类与用途](../../output/problem-3/文件分类与用途.md)，了解代码、正式结果、计算证据及辅助文件的区别；只查看成果可从[输出目录索引](../../output/problem-3/README.md)进入。
+
+全部计算从均匀初值 28°C、2.55 kg/kg 重新开始，附录 3 局部物性、固定半径 0.02 m、长度 0.25 m。主方案在 14400 s 后同时固定末次温度和环境水分浓度，均值情景仅替换观测区间之后的边界。详细推导见[模型与算法说明](../../output/problem-3/模型与算法说明.md)，计算结果和全部证据见 `../../output/problem-3/结果与验证.md`。
 
 ## 运行环境
 
@@ -42,7 +44,8 @@ python -B -X utf8 src/problem-3/verify_problem3.py --workbook
 | `deliver_problem3.py` | 从通过验收的 production 解生成表 5、未舍入载荷、4 幅科学图表、计算结果报告 |
 | `build_workbook.mjs` | 保留 Sheet1/A1，扩展为 21 个距离列，保持数值并设置四位小数显示 |
 | `run_all.py` | 串联上述流程，失败立即退出 |
-| `模型与算法说明.md` | 65 个连续编号公式、完整模型、推导、参数、假设和指标 |
+
+本目录只保留代码、运行说明、忽略规则及必要的本地依赖联接。模型文档、分类索引和图像均归入 `output/problem-3/`；图像检查副本位于其 `previews/` 子目录。绘图字体缓存使用输出目录内的临时目录并在进程退出时清理；工作簿导出后移除自动产生的冗长 NDJSON 诊断。
 
 ## 主要交付文件
 
@@ -55,7 +58,7 @@ python -B -X utf8 src/problem-3/verify_problem3.py --workbook
 - `output/problem-3/derived_boundaries.csv`、`input_audit.json`：环境派生结果和原始输入审计。
 - `output/problem-3/drying_history.svg`、`radial_profiles.svg`、`temperature_and_environment.svg`、`convergence.svg`：科学图表。
 
-其余 `space*.npz/json`、`time*.npz/json`、`mean*.npz/json` 为独立运行证据。`src/problem-3/*_qa.png` 及模板/工作簿预览仅供本次视觉核查；遵守项目规定，没有读取 output 下的 PNG。原始题目、附件、模板、前两问、公共模块不写回。`production` 对应正式主解，`space12800` 是相同空间网格但时间步较粗的研究案例，两者不能混用。
+其余必要的 `space*.npz/json`、`time12800quarter*.npz/json`、`mean12800*.npz/json` 为独立运行证据。`output/problem-3/previews/` 保存此前视觉核查使用的图像，后续导出也写入该目录；没有重新读取 output 下的 PNG。已清理不参与正式流程的 `time6400half`、`mean6400` 早期案例、题目临时截图和冗余诊断缓存。原始题目、附件、模板、前两问、公共模块不写回。`production` 对应正式主解，`space12800` 是相同空间网格但时间步较粗的研究案例，两者不能混用。
 
 ## NPZ 数组约定
 

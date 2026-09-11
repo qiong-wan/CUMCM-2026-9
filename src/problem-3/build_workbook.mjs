@@ -6,6 +6,8 @@ import { FileBlob, SpreadsheetFile } from '@oai/artifact-tool';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
 const out = path.join(root, 'output/problem-3');
+const previews = path.join(out, 'previews');
+await fs.mkdir(previews, { recursive: true });
 const workbook = await SpreadsheetFile.importXlsx(
   await FileBlob.load(path.join(root, 'data/附件3/result3.xlsx')),
 );
@@ -14,7 +16,7 @@ if (process.argv.includes('--preview-template')) {
   console.log((await workbook.inspect({ kind: 'region', sheetId: 'Sheet1',
     range: 'A1:F5', maxChars: 2000 })).ndjson);
   const preview = await workbook.render({ sheetName: 'Sheet1', range: 'A1:F5', scale: 2 });
-  await fs.writeFile(path.join(here, 'template_preview.png'), new Uint8Array(await preview.arrayBuffer()));
+  await fs.writeFile(path.join(previews, 'template_preview.png'), new Uint8Array(await preview.arrayBuffer()));
 } else {
   const payload = JSON.parse(await fs.readFile(path.join(out, 'workbook_payload.json'), 'utf8'));
   if (sheet.getRange('A1').values[0][0] !== payload.header[0]) throw new Error('Template A1 mismatch');
@@ -43,10 +45,11 @@ if (process.argv.includes('--preview-template')) {
   for (const [name, range] of [['workbook_preview', 'A1:V8'],
     ['workbook_end_preview', `A${last - 4}:H${last}`]]) {
     const preview = await workbook.render({ sheetName: 'Sheet1', range, scale: 1.5 });
-    await fs.writeFile(path.join(here, `${name}.png`), new Uint8Array(await preview.arrayBuffer()));
+    await fs.writeFile(path.join(previews, `${name}.png`), new Uint8Array(await preview.arrayBuffer()));
   }
   const result = await SpreadsheetFile.exportXlsx(workbook);
   await result.save(path.join(out, 'result3.xlsx'));
+  await fs.rm(path.join(out, 'result3.xlsx.inspect.ndjson'), { force: true });
   await fs.writeFile(path.join(out, 'artifact_inspection.txt'), checks.join('\n'));
   console.log(`Exported Sheet1: ${last} rows, 22 columns; final time ${payload.rows.at(-1)[0]} s`);
 }
