@@ -1,0 +1,275 @@
+{
+  "workbook": {
+    "温度": {
+      "shape": [
+        10801,
+        22
+      ],
+      "header_matches_original_template": true,
+      "all_seconds_correct": true,
+      "all_radii_correct": true,
+      "all_values_finite": true,
+      "range": [
+        28.0,
+        49.9664
+      ],
+      "number_formats": {
+        "General": 226800
+      },
+      "format_example": {
+        "cell": "B2",
+        "value": 28,
+        "format": "General"
+      },
+      "csv_table_max_difference": 0.0,
+      "csv_times_correct": true,
+      "initial_second_surface": 28.0001,
+      "last_row": [
+        49.8495,
+        49.8497,
+        49.8504,
+        49.8515,
+        49.8532,
+        49.8553,
+        49.858,
+        49.8612,
+        49.8651,
+        49.8695,
+        49.8746,
+        49.8803,
+        49.8867,
+        49.8938,
+        49.9016,
+        49.9101,
+        49.9194,
+        49.9296,
+        49.9407,
+        49.9529,
+        49.9664
+      ]
+    },
+    "水分浓度": {
+      "shape": [
+        10801,
+        22
+      ],
+      "header_matches_original_template": true,
+      "all_seconds_correct": true,
+      "all_radii_correct": true,
+      "all_values_finite": true,
+      "range": [
+        1.0081,
+        2.55
+      ],
+      "number_formats": {
+        "General": 226800
+      },
+      "format_example": {
+        "cell": "B2",
+        "value": 2.55,
+        "format": "General"
+      },
+      "csv_table_max_difference": 0.0,
+      "csv_times_correct": true,
+      "initial_second_surface": 2.5208,
+      "last_row": [
+        1.7662,
+        1.7642,
+        1.7582,
+        1.7483,
+        1.7344,
+        1.7165,
+        1.6948,
+        1.6693,
+        1.64,
+        1.6069,
+        1.5702,
+        1.5299,
+        1.486,
+        1.4385,
+        1.3876,
+        1.3333,
+        1.2755,
+        1.2141,
+        1.1493,
+        1.0807,
+        1.0081
+      ]
+    }
+  },
+  "early_time_runs": [
+    {
+      "N": 3200,
+      "nsub": 4,
+      "wall_s": 0.06138869999995222,
+      "C_surface_1s": 2.5207533617037496,
+      "T_surface_1s": 28.000141251221578
+    },
+    {
+      "N": 3200,
+      "nsub": 8,
+      "wall_s": 0.09352239999952872,
+      "C_surface_1s": 2.5202901541191443,
+      "T_surface_1s": 28.000135561138762
+    },
+    {
+      "N": 3200,
+      "nsub": 16,
+      "wall_s": 0.18343999999979133,
+      "C_surface_1s": 2.520055085346438,
+      "T_surface_1s": 28.000132638745086
+    },
+    {
+      "N": 3200,
+      "nsub": 40,
+      "wall_s": 0.34931049999977404,
+      "C_surface_1s": 2.5199130460804677,
+      "T_surface_1s": 28.000130859529868
+    },
+    {
+      "N": 3200,
+      "nsub": 80,
+      "wall_s": 0.6742781000002651,
+      "C_surface_1s": 2.5198655432180024,
+      "T_surface_1s": 28.000130262078386
+    }
+  ],
+  "early_time_comparisons": [
+    {
+      "previous_nsub": 4,
+      "nsub": 8,
+      "temperature": {
+        "maximum": 1.8206927471453582e-05,
+        "time_s": 10,
+        "radius_cm": 2.0,
+        "first_value": 28.004087513827745,
+        "second_value": 28.004069306900274,
+        "rounded_4dp_differences": 1
+      },
+      "moisture": {
+        "maximum": 0.00046320758460538514,
+        "time_s": 1,
+        "radius_cm": 2.0,
+        "first_value": 2.5207533617037496,
+        "second_value": 2.5202901541191443,
+        "rounded_4dp_differences": 10
+      }
+    },
+    {
+      "previous_nsub": 8,
+      "nsub": 16,
+      "temperature": {
+        "maximum": 9.129520350370512e-06,
+        "time_s": 10,
+        "radius_cm": 2.0,
+        "first_value": 28.004069306900274,
+        "second_value": 28.004060177379923,
+        "rounded_4dp_differences": 2
+      },
+      "moisture": {
+        "maximum": 0.00023506877270618176,
+        "time_s": 1,
+        "radius_cm": 2.0,
+        "first_value": 2.5202901541191443,
+        "second_value": 2.520055085346438,
+        "rounded_4dp_differences": 10
+      }
+    },
+    {
+      "previous_nsub": 16,
+      "nsub": 40,
+      "temperature": {
+        "maximum": 5.486082667260916e-06,
+        "time_s": 10,
+        "radius_cm": 2.0,
+        "first_value": 28.004060177379923,
+        "second_value": 28.004054691297256,
+        "rounded_4dp_differences": 0
+      },
+      "moisture": {
+        "maximum": 0.00014203926597033956,
+        "time_s": 1,
+        "radius_cm": 2.0,
+        "first_value": 2.520055085346438,
+        "second_value": 2.5199130460804677,
+        "rounded_4dp_differences": 8
+      }
+    },
+    {
+      "previous_nsub": 40,
+      "nsub": 80,
+      "temperature": {
+        "maximum": 1.8300931365899942e-06,
+        "time_s": 10,
+        "radius_cm": 2.0,
+        "first_value": 28.004054691297256,
+        "second_value": 28.00405286120412,
+        "rounded_4dp_differences": 0
+      },
+      "moisture": {
+        "maximum": 4.750286246535396e-05,
+        "time_s": 1,
+        "radius_cm": 2.0,
+        "first_value": 2.5199130460804677,
+        "second_value": 2.5198655432180024,
+        "rounded_4dp_differences": 0
+      }
+    }
+  ],
+  "early_production_vs_finest": {
+    "temperature": {
+      "maximum": 3.4652623625675005e-05,
+      "time_s": 10,
+      "radius_cm": 2.0,
+      "first_value": 28.004087513827745,
+      "second_value": 28.00405286120412,
+      "rounded_4dp_differences": 3
+    },
+    "moisture": {
+      "maximum": 0.0008878184857472604,
+      "time_s": 1,
+      "radius_cm": 2.0,
+      "first_value": 2.5207533617037496,
+      "second_value": 2.5198655432180024,
+      "rounded_4dp_differences": 10
+    }
+  },
+  "early_workbook_vs_recomputed_rounded": {
+    "温度": 0,
+    "水分浓度": 0
+  },
+  "mass_audit_probe": {
+    "reported_original": 2.378191937315536e-13,
+    "reported_after_zeroing_only_boundary_integral": 2.378191937315536e-13,
+    "correct_original": 1.5613172109618072e-13,
+    "correct_after_zeroing_boundary_integral": 1.0,
+    "probe_uses_synthetic_diagnostic_copy_only": true
+  },
+  "skip_verification_probe": [
+    "Surface and centre differences decrease monotonically with refinement: PASS",
+    "    Grid N = 0, nsub = 0 (same time discretisation for both).",
+    "    Result: PASS",
+    "    1. result2.xlsx layout            : PASS",
+    "    2. Tables 3/4 match the numerics  : PASS",
+    "    3. Independent method max|dT| < 1e-3 and max|dC| < 1e-3 : PASS",
+    "    4. Quantified latent-heat inconsistency reported        : PASS"
+  ],
+  "original_files_sha256": {
+    "D:\\CUMCM\\Solution\\problem.pdf": "052d8014bff5727c019b72e44fdffaf5c145ce04050dd938baaf3527db331736",
+    "D:\\CUMCM\\Solution\\data\\附件1.xlsx": "7ef32870abeef420b89560b2530ff60dfe4255917805151d89988d0311af9dd7",
+    "D:\\CUMCM\\Solution\\data\\附件3\\result2.xlsx": "23b261b295c1b787d000eebbca6521c37075107b6fcf78724f8d395ce1798ff4",
+    "D:\\CUMCM\\Solution\\src\\common\\fvm.py": "271191380ae48d05f3bb0fdb35bd48a017eeec93e1a461453cefea9c1d0387ad",
+    "D:\\CUMCM\\Solution\\src\\problem-2\\audit_problem2_inputs.py": "3c541af5f19c38d6420f774124e5534cf81e95e05d6c06655ff90689836752c2",
+    "D:\\CUMCM\\Solution\\src\\problem-2\\solve_problem2.py": "75b6d6df1f825a80b00c490c8de72a25abcdb8b8cbba0e5852a11b8ec604bb63",
+    "D:\\CUMCM\\Solution\\src\\problem-2\\README.md": "d2b3efd41598c132cec7c3665c9521251296d0261992e9e6c21704c43e68b5c7",
+    "D:\\CUMCM\\Solution\\src\\problem-2\\问题2_模型与算法说明.md": "055caa21d38f06d64901262dbc7120a7a76b8c898d8b13701dbae56e96c2e790",
+    "D:\\CUMCM\\Solution\\src\\problem-2\\问题2_解题框架与公式推导.md": "da7bda288554b92d71f0c02589568a18800e9035f750bdca270d3f3c6ebbaadd",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\input_audit.json": "37b6a4a11622830f23ae5d65e9605975ecd600bffbcc5b71df1cb42a5d67eed6",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\result2.xlsx": "5d6708770f0245c3d97d91f8927daa89d612bf4e241a14d59b728abb79cb12d4",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\table3_temperature.csv": "aa1de73b3b6277821c9db1ab1210417b5b7d441d12b6b995fb340e2acd71f167",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\table4_moisture.csv": "471b8e902fafcc6ed6e8475a119b067844f766eb688a71047deea9ffa44351c0",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\tables3_4.md": "ae56271fe316bcbfabf701aa6684b59db490e967bb45aec05638371af2c54efb",
+    "D:\\CUMCM\\Solution\\output\\problem-2\\verification.txt": "9f9650e366f3c42c5d965e59bed104bad48f6ca45038a1ec849e36d31a84ae72"
+  },
+  "all_original_files_unchanged": true
+}
