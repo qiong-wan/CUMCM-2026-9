@@ -95,7 +95,7 @@ C_INIT = 2.55       # initial dry-basis moisture [kg/kg]
 PREHEAT_END_S = 14400.0
 T_END_OUT = 10800.0     # reported horizon (3 h)
 N_OUT = 20              # delivery grid -> 0.1 cm spacing
-N_REF = 1600            # production mesh -> dr = 0.0125 mm <= 0.025 mm
+N_REF = 3200            # production mesh -> dr = 0.00625 mm <= 0.025 mm
 NSUB = 4                # implicit sub-steps per second (dt = 0.25 s)
 PICARD_TOL = 1.0e-11
 PICARD_MAX_IT = 100
@@ -128,12 +128,20 @@ def k_of_C(C):
 def D_of_CT(C, T_C):
     """Moisture diffusivity [m^2/s], Appendix 3.
 
-    ``D = 2.4e-3 exp(-0.45/C) exp(-3850/T)`` with ``T`` in kelvin.  ``C`` is
-    floored at 1e-12 to avoid a division by zero; the harmonic-mean guard in
-    :func:`common.fvm.harmonic_mean` raises if ``D`` underflows to zero.
+    ``D = 2.4e-3 exp(-0.45/C) exp(-3850/T)`` with ``T`` in kelvin.  Following
+    the framework, the argument is required to be physically admissible: a
+    non-positive or non-finite ``C`` (or a non-positive absolute temperature)
+    raises instead of being silently clamped.  If ``D`` itself underflows to
+    zero, the harmonic-mean guard in :func:`common.fvm.harmonic_mean` raises.
     """
-    C = np.maximum(np.asarray(C, dtype=float), 1.0e-12)
+    C = np.asarray(C, dtype=float)
     T_K = np.asarray(T_C, dtype=float) + 273.15
+    if not np.all(np.isfinite(C)) or not np.all(np.isfinite(T_K)):
+        raise ValueError("D_of_CT: non-finite C or T")
+    if np.any(C <= 0.0):
+        raise ValueError("D_of_CT: C must be strictly positive")
+    if np.any(T_K <= 0.0):
+        raise ValueError("D_of_CT: absolute temperature must be positive")
     return 2.4e-3 * np.exp(-0.45 / C) * np.exp(-3850.0 / T_K)
 
 
@@ -224,6 +232,8 @@ def simulate(
     c_center = np.zeros(nsec + 1)
     heat_in = np.zeros(nsec + 1)
     moist_in = np.zeros(nsec + 1)
+    robin_t = np.zeros(nsec + 1)
+    robin_c = np.zeros(nsec + 1)
 
     def snapshot(sec: int) -> None:
         s_T = rho_of_C(C) * cp_of_C(C)
@@ -301,6 +311,13 @@ def simulate(
             C_hist[sec] = C[idx]
         snapshot(sec)
 
+        # second-order one-sided surface gradients -> Robin residuals
+        t_inf_s, c_inf_s = ambient(float(sec))
+        grad_t = (3.0 * T[-1] - 4.0 * T[-2] + T[-3]) / (2.0 * dr)
+        grad_c = (3.0 * C[-1] - 4.0 * C[-2] + C[-3]) / (2.0 * dr)
+        robin_t[sec] = -k_of_C(C[-1]) * grad_t - H * (T[-1] - t_inf_s)
+        robin_c[sec] = -D_of_CT(C[-1], T[-1]) * grad_c - HM * (C[-1] - c_inf_s)
+
     return {
         "r": r[idx],
         "T_hist": T_hist,
@@ -314,6 +331,8 @@ def simulate(
         "c_center": c_center,
         "heat_in": heat_in,
         "moist_in": moist_in,
+        "robin_t": robin_t,
+        "robin_c": robin_c,
         "acc_heat": acc_heat,
         "acc_moist": acc_moist,
         "picard_max_it": picard_max_it,
@@ -535,7 +554,7 @@ def grid_convergence(t_end=T_END_OUT, nsub=2) -> list[dict]:
     """Return per-refinement max differences between successive grids."""
     prev = None
     rows = []
-    for N in (400, 800, 1600):
+    for N in (400, 800, 1600, 3200):
         res = simulate(N=N, nsub=nsub, t_end=t_end, record=True)
         if prev is not None:
             row = {"N": N}
@@ -632,8 +651,13 @@ def write_verification(res, audit, gc, tc, ind, full_summary=None, file_failures
     for row in gc:
         lines.append(
             f"    N -> {row['N']:4d}:  whole max|dT|={row['dT']:.3e}, max|dC|={row['dC']:.3e} | "
-            f"surface max|dT|={row['dT_surf']:.3e}, max|dC|={row['dC_surf']:.3e} | "
-            f"centre max|dT|={row['dT_center']:.3e}, max|dC|={row['dC_center']:.3e}"
+            f"t>=1800 s max|dT|={row['dT_win']:.3e}, max|dC|={row['dC_win']:.3e} | "
+            f"centre max|dC|={row['dC_center']:.3e}"
+        )
+    if gc:
+        lines.append(
+            f"    finest whole-field max|dC| = {gc[-1]['dC']:.3e} kg/kg "
+            "(framework delivery target < 5e-5)."
         )
     mono = (
         all(gc[i]["dC_surf"] >= gc[i + 1]["dC_surf"] for i in range(len(gc) - 1))
@@ -671,6 +695,14 @@ def write_verification(res, audit, gc, tc, ind, full_summary=None, file_failures
         f"    Boundary heat input                     : {audit['heat_input']:.4e} J",
         f"    Ignored latent heat (L_v = 2.26e6 J/kg): {audit['latent']:.4e} J",
         f"    Latent / heat-input ratio               : {audit['latent_rel']:.2f}",
+        "",
+        "Surface Robin residuals (t >= 1 s, second-order one-sided gradient)",
+        "-" * 72,
+        f"    max |R_T| = {np.max(np.abs(res['robin_t'][1:])):.3e} W/m^2",
+        f"    max |R_C| = {np.max(np.abs(res['robin_c'][1:])):.3e} (kg/kg) m/s",
+        "    The initial corner is incompatible (uniform C but C_s != C_inf); the",
+        "    residual is therefore evaluated for t >= 1 s and decreases with mesh",
+        "    refinement rather than being zero on a finite grid.",
         "",
         "Energy-inconsistency discussion",
         "The energy equation rho(C) cp(C) dT/dt = div(k grad T) omits the latent heat",
