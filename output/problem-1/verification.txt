@@ -1,0 +1,8 @@
+Problem 1 verification
+========================================
+energy balance relative error   : 9.745e-06
+moisture balance relative error : 6.129e-06
+Picard max iterations / residual: 4 / 5.773e-15
+max |Robin temperature residual|: 1.068e-04 W/m^2
+max |Robin moisture residual|   : 8.000e-10 kg/(kg m s)
+physical checks: PASS
