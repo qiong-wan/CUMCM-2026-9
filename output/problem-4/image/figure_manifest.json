@@ -2,18 +2,23 @@
   "status": "PASS",
   "automated_visual_checks": "PASS",
   "visual_review": "PASS",
-  "visual_review_record": "../review/图像视觉核查.md",
   "font": "Microsoft YaHei",
   "plot_dependencies": {
     "matplotlib": "3.9.3",
     "numpy": "2.2.0",
     "openpyxl": "3.1.5"
   },
-  "plot_code_sha256": "9613b2fe660a80db07dac2665e3da0d2472e957f2a509adf411ce425325a0267",
+  "plot_code_sha256": "48d7b30cc7cf9e3cf8d88ec759d4af2c9c2001535bba8f7f322e066f21ef4e1e",
+  "plot_code_scope": "Latest invocation; each figure retains its generating source",
+  "regenerated_figures": [
+    "04_moisture_space_time",
+    "06_numerical_convergence"
+  ],
   "solve_code_sha256": "c61d4a4aa5de254af56374b84dfb92d2aebda0bc1cf51babf677987ec656b42f",
   "verification_sha256": "71ff26efc046b891742be9e1ba23d942348c54b71ec030632671008cf672a2cc",
   "main_case": "cases\\main-fd65219ad643f710",
   "numerical_preservation": "PASS",
+  "validated_source_files": 116,
   "PNG_outputs_read": false,
   "figures": [
     {
@@ -32,7 +37,9 @@
       "text_bounds": "PASS",
       "nonblank_fraction": 0.050411055988660525,
       "font_glyphs": "PASS",
-      "dpi": 320
+      "dpi": 320,
+      "plot_code_sha256": "9613b2fe660a80db07dac2665e3da0d2472e957f2a509adf411ce425325a0267",
+      "visual_review": "PASS"
     },
     {
       "name": "02_moisture_history",
@@ -50,7 +57,9 @@
       "text_bounds": "PASS",
       "nonblank_fraction": 0.06306006493506494,
       "font_glyphs": "PASS",
-      "dpi": 320
+      "dpi": 320,
+      "plot_code_sha256": "9613b2fe660a80db07dac2665e3da0d2472e957f2a509adf411ce425325a0267",
+      "visual_review": "PASS"
     },
     {
       "name": "03_actual_radius_profiles",
@@ -68,7 +77,9 @@
       "text_bounds": "PASS",
       "nonblank_fraction": 0.07849430639214529,
       "font_glyphs": "PASS",
-      "dpi": 320
+      "dpi": 320,
+      "plot_code_sha256": "9613b2fe660a80db07dac2665e3da0d2472e957f2a509adf411ce425325a0267",
+      "visual_review": "PASS"
     },
     {
       "name": "04_moisture_space_time",
@@ -76,17 +87,26 @@
         "04_moisture_space_time.svg",
         "04_moisture_space_time.png"
       ],
-      "svg_sha256": "3e4e4a5c76513a215157c29b6c6c65c3a618eea95880900b71073dd17ba5fae1",
+      "svg_sha256": "f74db8069659361bdcbf74cf364c9b8da1dffbfb781823250e0e8c796993b760",
       "preview": "D:\\CUMCM\\tmp\\problem4_figure_previews\\04_moisture_space_time.jpg",
       "sources": [
         "cases\\main-fd65219ad643f710/fields_*.npz",
         "data/radius_observed_SI.csv"
       ],
-      "scope_and_limit": "一维径向时空图；灰色为药材外部。色块来自保存时刻，未求解二维轴向场。",
+      "scope_and_limit": "一维径向时空图；灰色为药材外部。白色虚线为 0.15 kg/kg 等值线，按已保存场插值展示，不替代未舍入全场事件定位；未求解二维轴向场。",
       "text_bounds": "PASS",
-      "nonblank_fraction": 0.5106216503374514,
+      "nonblank_fraction": 0.5118936402641463,
       "font_glyphs": "PASS",
-      "dpi": 320
+      "dpi": 320,
+      "plot_code_sha256": "48d7b30cc7cf9e3cf8d88ec759d4af2c9c2001535bba8f7f322e066f21ef4e1e",
+      "visual_review": "PASS",
+      "threshold_contour": {
+        "level_kg_kg": 0.15,
+        "segments": 2,
+        "vertices": 2517,
+        "outside_material": false
+      },
+      "visual_review_record": "../review/图像视觉核查.md"
     },
     {
       "name": "05_temperature_and_diffusion",
@@ -103,7 +123,9 @@
       "text_bounds": "PASS",
       "nonblank_fraction": 0.05153276955602537,
       "font_glyphs": "PASS",
-      "dpi": 320
+      "dpi": 320,
+      "plot_code_sha256": "9613b2fe660a80db07dac2665e3da0d2472e957f2a509adf411ce425325a0267",
+      "visual_review": "PASS"
     },
     {
       "name": "06_numerical_convergence",
@@ -111,17 +133,66 @@
         "06_numerical_convergence.svg",
         "06_numerical_convergence.png"
       ],
-      "svg_sha256": "1ff02e1ae34a0c2f2353cbf31adf5a6c14e0bec6510d05249595340576065c88",
+      "svg_sha256": "e4fc83935968bfe858661f69e275f0176da94f84929d86d504c711771bcc7d8f",
       "preview": "D:\\CUMCM\\tmp\\problem4_figure_previews\\06_numerical_convergence.jpg",
       "sources": [
         "review/verification.json",
-        "review/acceptance_targets.json"
+        "cases\\space_n12800-a744ed58932df8ff/metadata.json",
+        "cases\\space_n25600-72487939e66bd54d/metadata.json",
+        "cases\\space_n51200-1e593c5208316ac9/metadata.json",
+        "cases\\main-fd65219ad643f710/metadata.json",
+        "cases\\time_quarter-78e81678e38ce8ff/metadata.json"
       ],
-      "scope_and_limit": "数据来自实际执行的相邻加密；差值是经验精度指标，不是严格误差上界。",
+      "scope_and_limit": "两组均展示三级实际计算结果，相对本组最细解的时长差按存档事件直接计算。红圈标记主方案选用的网格或时间倍率；表格保留粗级未通过及全部相邻场差。参考解自差为零不代表真实误差为零，观察阶不是严格精度证明。",
       "text_bounds": "PASS",
-      "nonblank_fraction": 0.050891733333333335,
+      "nonblank_fraction": 0.12751210653753026,
       "font_glyphs": "PASS",
-      "dpi": 320
+      "dpi": 320,
+      "plot_code_sha256": "48d7b30cc7cf9e3cf8d88ec759d4af2c9c2001535bba8f7f322e066f21ef4e1e",
+      "visual_review": "PASS",
+      "convergence_levels": {
+        "space": {
+          "levels": [
+            12800,
+            25600,
+            51200
+          ],
+          "critical_s": [
+            182967.1696472168,
+            182967.11837768555,
+            182967.10556030273
+          ],
+          "reference_case": "cases\\space_n51200-1e593c5208316ac9",
+          "absolute_offset_ms": [
+            64.0869140625,
+            12.8173828125,
+            0
+          ],
+          "chosen_level": 51200,
+          "field_C_observed_order": 2.032537687165252
+        },
+        "time": {
+          "levels": [
+            1,
+            0.5,
+            0.25
+          ],
+          "critical_s": [
+            182967.10556030273,
+            182967.12661743164,
+            182967.1321105957
+          ],
+          "reference_case": "cases\\time_quarter-78e81678e38ce8ff",
+          "absolute_offset_ms": [
+            26.55029296875,
+            5.4931640625,
+            0
+          ],
+          "chosen_level": 0.5,
+          "field_C_observed_order": 1.9602276749749794
+        }
+      },
+      "visual_review_record": "../review/图像视觉核查.md"
     },
     {
       "name": "07_scenarios_and_sensitivity",
@@ -139,7 +210,9 @@
       "text_bounds": "PASS",
       "nonblank_fraction": 0.2812444196428571,
       "font_glyphs": "PASS",
-      "dpi": 320
+      "dpi": 320,
+      "plot_code_sha256": "9613b2fe660a80db07dac2665e3da0d2472e957f2a509adf411ce425325a0267",
+      "visual_review": "PASS"
     },
     {
       "name": "workbook_preview",
@@ -150,7 +223,10 @@
         "D:\\CUMCM\\tmp\\problem4_figure_previews\\workbook_part1.jpg",
         "D:\\CUMCM\\tmp\\problem4_figure_previews\\workbook_part2.jpg"
       ],
-      "scope_and_limit": "保存后工作簿选定行的数值与四位小数格式重构预览；数值逐格校验见 delivery_checks.json。"
+      "scope_and_limit": "保存后工作簿选定行的数值与四位小数格式重构预览；数值逐格校验见 delivery_checks.json。",
+      "plot_code_sha256": "9613b2fe660a80db07dac2665e3da0d2472e957f2a509adf411ce425325a0267",
+      "visual_review": "PASS"
     }
-  ]
+  ],
+  "visual_review_record": "../review/图像视觉核查.md"
 }

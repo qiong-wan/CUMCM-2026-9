@@ -16,8 +16,9 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-from matplotlib import font_manager, pyplot as plt
+from matplotlib import font_manager, patheffects, pyplot as plt
 from matplotlib.colors import Normalize
+from matplotlib.lines import Line2D
 from matplotlib.text import Text
 import numpy as np
 import openpyxl
@@ -28,6 +29,15 @@ OUT = ROOT / "output/problem-4"
 IMAGES = OUT / "image"
 PREVIEWS = ROOT.parent / "tmp/problem4_figure_previews"
 COLORS = ("#0072B2", "#009E73", "#E69F00", "#D55E00", "#CC79A7", "#56B4E9")
+FIGURE_NAMES = (
+    "01_inputs_and_radius",
+    "02_moisture_history",
+    "03_actual_radius_profiles",
+    "04_moisture_space_time",
+    "05_temperature_and_diffusion",
+    "06_numerical_convergence",
+    "07_scenarios_and_sensitivity",
+)
 LABELS = {
     "appendix3_fixed": "附录 3 · 固定半径",
     "appendix3_shrink": "附录 3 · 实测收缩",
@@ -86,27 +96,35 @@ def configure_style() -> str:
     return family
 
 
-def load_verified() -> tuple:
-    """Reject stale sources, unverified batches and altered numerical chunks before plotting."""
+def load_verified(selected: set[str] | None = None) -> tuple:
+    """Verify delivery and the numerical files required by the selected plots."""
+    requested = set(FIGURE_NAMES) if selected is None else selected
     manifest = read_json(OUT / "delivery_manifest.json")
     if manifest["status"] != "PASS":
         raise RuntimeError("Delivery is not verified")
     solver = ROOT / "src/problem-4/solve_problem4.py"
     if sha256(solver) != manifest["source_sha256"]:
         raise RuntimeError("Solver source changed after verification")
+    numerical_hashes = {str(solver): manifest["source_sha256"]}
     for name, digest in manifest["inputs"].items():
         if sha256(ROOT / name) != digest:
             raise RuntimeError(f"Input changed: {name}")
+        numerical_hashes[str(ROOT / name)] = digest
     for name, digest in manifest["files"].items():
         if sha256(OUT / name) != digest:
             raise RuntimeError(f"Delivery changed: {name}")
+        numerical_hashes[str(OUT / name)] = digest
     if sha256(OUT / "review/verification.json") != manifest["verification_sha256"]:
         raise RuntimeError("Verification changed")
     report = read_json(OUT / "review/verification.json")
     if report["status"] != "PASS":
         raise RuntimeError("Numerical prerequisite checks not passed")
-    case_paths = [report["main"], *(case["path"] for case in report["scenarios"])]
-    numerical_hashes = {}
+    numerical_hashes[str(OUT / "review/verification.json")] = manifest[
+        "verification_sha256"
+    ]
+    case_paths = [report["main"]]
+    if "07_scenarios_and_sensitivity" in requested:
+        case_paths.extend(case["path"] for case in report["scenarios"])
     for relative in case_paths:
         path = OUT / relative
         meta = read_json(path / "metadata.json")
@@ -115,10 +133,24 @@ def load_verified() -> tuple:
             raise RuntimeError("Case metadata altered")
         numerical_hashes[str(path / "metadata.json")] = expected_meta
         for filename, digest in meta["files"].items():
+            if selected is not None and not (
+                relative == report["main"]
+                and ("04_moisture_space_time" in requested or filename == "summary.npz")
+            ):
+                continue
             source = path / filename
             if sha256(source) != digest:
                 raise RuntimeError(f"Case data altered: {source}")
             numerical_hashes[str(source)] = digest
+    if "06_numerical_convergence" in requested:
+        for item in (*report["space"], *report["time"]):
+            for key in ("coarse", "fine"):
+                relative = item[key]
+                path = OUT / relative / "metadata.json"
+                digest = report["case_metadata_sha256"][relative]
+                if sha256(path) != digest:
+                    raise RuntimeError(f"Convergence metadata altered: {relative}")
+                numerical_hashes[str(path)] = digest
     main_path = OUT / report["main"]
     main_meta = read_json(main_path / "metadata.json")
     with np.load(main_path / "summary.npz", allow_pickle=False) as data:
@@ -210,6 +242,8 @@ def save_figure(fig, name: str, sources: list, scope: str, manifest: list) -> No
             "nonblank_fraction": fraction,
             "font_glyphs": "PASS",
             "dpi": 320,
+            "plot_code_sha256": sha256(Path(__file__).resolve()),
+            "visual_review": "PENDING_JPEG_INSPECTION",
         }
     )
     plt.close(fig)
@@ -379,17 +413,54 @@ def plot_heatmap(
         rasterized=True,
     )
     ax.plot(times, boundaries, color="#C44E52", lw=1.6, label="实测收缩边界")
+    contour = ax.contour(
+        times,
+        distances,
+        np.ma.masked_invalid(values.T),
+        levels=[0.15],
+        colors=["#FFFFFF"],
+        linestyles="--",
+        linewidths=1.6,
+        corner_mask=False,
+        zorder=4,
+    )
+    outline = [
+        patheffects.Stroke(linewidth=2.9, foreground="#29343D"),
+        patheffects.Normal(),
+    ]
+    contour.set_path_effects(outline)
+    segments = [segment for segment in contour.allsegs[0] if len(segment) > 1]
+    if not segments:
+        raise RuntimeError("No 0.15 kg/kg contour in the saved moisture field")
+    for segment in segments:
+        outer_radius = np.interp(segment[:, 0], times, boundaries)
+        if not np.isfinite(segment).all() or np.any(
+            segment[:, 1] > outer_radius + 1e-9
+        ):
+            raise AssertionError("Threshold contour extends outside the material")
     fig.colorbar(mesh, ax=ax, label="干基含水率 / (kg/kg)", pad=0.025)
     ax.set(xlim=(0, meta["end_s"] / 3600), ylim=(0, 2.0))
     finish_axes(ax, "时间 / h", "距药材中心的实际距离 / cm")
-    ax.legend(loc="upper right")
+    boundary_handle = ax.lines[0]
+    threshold_handle = Line2D(
+        [], [], color="white", ls="--", lw=1.6, path_effects=outline,
+        label="含水率 0.15 kg/kg 等值线",
+    )
+    ax.legend(handles=[boundary_handle, threshold_handle], loc="upper right")
     save_figure(
         fig,
         "04_moisture_space_time",
         [report["main"] + "/fields_*.npz", "data/radius_observed_SI.csv"],
-        "一维径向时空图；灰色为药材外部。色块来自保存时刻，未求解二维轴向场。",
+        "一维径向时空图；灰色为药材外部。白色虚线为 0.15 kg/kg 等值线，"
+        "按已保存场插值展示，不替代未舍入全场事件定位；未求解二维轴向场。",
         manifest,
     )
+    manifest[-1]["threshold_contour"] = {
+        "level_kg_kg": 0.15,
+        "segments": len(segments),
+        "vertices": sum(len(segment) for segment in segments),
+        "outside_material": False,
+    }
 
 
 def plot_temperature(summary: dict, meta: dict, manifest: list) -> None:
@@ -429,56 +500,157 @@ def plot_temperature(summary: dict, meta: dict, manifest: list) -> None:
     )
 
 
-def plot_convergence(report: dict, meta: dict, manifest: list) -> None:
-    """Plot executed spatial and temporal differences and drying-event convergence."""
-    space, temporal = report["space"], report["time"]
-    fig, axes = plt.subplots(2, 3, figsize=(12.5, 7.5), layout="constrained")
-    for row, (items, xlabel, title) in enumerate(
-        (
-            (space, "细一级径向区间数 N", "空间加密"),
-            (temporal, "细一级时间倍率", f"时间加密 · N={report['N']}"),
-        )
+def convergence_levels(items: list, report: dict) -> tuple:
+    """Read each actual refinement level and validate its adjacent event differences."""
+    if not items:
+        raise ValueError("No executed refinement comparisons")
+    relatives = [items[0]["coarse"]]
+    for item in items:
+        if item["coarse"] != relatives[-1]:
+            raise ValueError("Refinement comparisons do not form a contiguous sequence")
+        relatives.append(item["fine"])
+    metadata = []
+    for relative in relatives:
+        path = OUT / relative / "metadata.json"
+        if sha256(path) != report["case_metadata_sha256"][relative]:
+            raise RuntimeError(f"Convergence metadata altered: {relative}")
+        value = read_json(path)
+        if value["event"] is None:
+            raise ValueError("Refinement level has no recorded threshold crossing")
+        metadata.append(value)
+    critical = np.array([value["event"]["critical_s"] for value in metadata])
+    if not np.isfinite(critical).all():
+        raise ValueError("Nonfinite convergence event times")
+    if not np.allclose(
+        np.diff(critical), [item["event_delta_s"] for item in items],
+        rtol=0, atol=1e-8,
     ):
-        abscissa = [item["N" if row == 0 else "factors"][1] for item in items]
-        for column, (field, ylabel) in enumerate(
-            (("C", "含水率最大差 / (kg/kg)"), ("T", "温度最大差 / °C"))
-        ):
-            ax = axes[row, column]
-            for region, label, marker, color in (
-                ("full", "完整场", "o-", COLORS[0]),
-                ("delivery", "实际交付点", "s-", COLORS[1]),
-            ):
-                ax.loglog(
-                    abscissa,
-                    [item["metrics"][region][field] for item in items],
-                    marker,
-                    color=color,
-                    label=label,
-                )
-            ax.axhline(5e-5, color="#666C72", ls="--", lw=0.9, label="场差目标")
-            finish_axes(ax, xlabel, ylabel, title)
-            ax.legend()
-        ax = axes[row, 2]
-        ax.loglog(
-            abscissa,
-            [abs(item["event_delta_s"]) for item in items],
-            "o-",
-            color=COLORS[3],
-            label="相邻级时长差",
+        raise ValueError("Event metadata and recorded refinement differences disagree")
+    return relatives, metadata, critical
+
+
+def plot_convergence(report: dict, meta: dict, manifest: list) -> None:
+    """Show executed levels, the chosen resolution, and adjacent field acceptance."""
+    fig = plt.figure(figsize=(11.8, 7.0), layout="constrained")
+    grid = fig.add_gridspec(3, 2, height_ratios=(3.2, 1.65, 0.55))
+    table_rows, evidence, sources = [], {}, ["review/verification.json"]
+    orders = []
+    for column, (key, label, color) in enumerate(
+        (("space", "空间", COLORS[0]), ("time", "时间", COLORS[1]))
+    ):
+        items = report[key]
+        relatives, metadata, critical = convergence_levels(items, report)
+        configs = [value["identity"]["config"] for value in metadata]
+        variable = "n" if key == "space" else "factor"
+        fixed = "factor" if key == "space" else "n"
+        if len({config[fixed] for config in configs}) != 1:
+            raise ValueError("Refinement plot mixes spatial and temporal changes")
+        levels = [config[variable] for config in configs]
+        chosen = meta["identity"]["config"][variable]
+        chosen_index = levels.index(chosen)
+        offsets_ms = 1000 * np.abs(critical - critical[-1])
+        xpos = np.arange(len(levels))
+        ax = fig.add_subplot(grid[0, column])
+        ax.bar(xpos, offsets_ms, width=0.32, color=color, alpha=0.72, zorder=3)
+        ax.plot(xpos, offsets_ms, "o", color=color, ms=5, zorder=4)
+        ax.scatter(
+            [chosen_index], [offsets_ms[chosen_index]], s=125,
+            facecolors="none", edgecolors="#B4433D", linewidths=1.6,
+            zorder=5, label="主方案网格" if key == "space" else "主方案时间倍率",
         )
-        ax.axhline(5, color="#666C72", ls="--", lw=0.9, label="时长差目标 5 s")
-        finish_axes(ax, xlabel, "临界时长绝对差 / s", title + " · 时长")
-        ax.legend()
-        if row == 1:
-            for ax in axes[row]:
-                ax.invert_xaxis()
+        for x, value in zip(xpos, offsets_ms):
+            ax.annotate(
+                f"{value:.2f}", (x, value), xytext=(0, 8),
+                textcoords="offset points", ha="center", va="bottom", fontsize=10,
+            )
+        span = max(float(offsets_ms.max()), 0.01)
+        ax.set_ylim(-0.12 * span, 1.55 * span)
+        ax.set_xlim(-0.5, len(levels) - 0.5)
+        ax.set_xticks(xpos, [f"{level:g}" for level in levels])
+        ax.axhline(0, color="#7C858C", lw=0.7)
+        finish_axes(
+            ax,
+            "径向区间数 N（由粗到细）" if key == "space" else "时间步倍率（由粗到细）",
+            "相对本组最细解的时长绝对差 / ms",
+        )
+        ax.grid(False, axis="x")
+        setting = (
+            f"时间倍率 {configs[0]['factor']:g}"
+            if key == "space" else f"N={configs[0]['n']}"
+        )
+        ax.set_title(f"({'ab'[column]}) {label}加密 · {setting}", loc="left", pad=10)
+        ax.text(
+            0.025, 0.95, f"参考时长 {critical[-1] / 3600:.4f} h",
+            transform=ax.transAxes, va="top", fontsize=9, color="#505960",
+        )
+        ax.legend(loc="upper right", frameon=False, fontsize=9)
+        differences = [item["metrics"]["full"]["C"] for item in items]
+        order = (
+            float(np.log2(differences[-2] / differences[-1]))
+            if len(items) >= 2 else None
+        )
+        orders.append(f"{label} {order:.2f}" if order is not None else f"{label}未估计")
+        for item in items:
+            pair = item["N" if key == "space" else "factors"]
+            table_rows.append(
+                [
+                    label, f"{pair[0]:g} → {pair[1]:g}",
+                    f"{item['metrics']['full']['C']:.3e}",
+                    f"{item['metrics']['full']['T']:.3e}",
+                    f"{abs(item['event_delta_s']):.6f}",
+                    "通过" if item["status"] == "PASS" else "未通过",
+                ]
+            )
+        sources.extend(relative + "/metadata.json" for relative in relatives)
+        evidence[key] = {
+            "levels": levels, "critical_s": critical.tolist(),
+            "reference_case": relatives[-1], "absolute_offset_ms": offsets_ms.tolist(),
+            "chosen_level": chosen, "field_C_observed_order": order,
+        }
+
+    table_ax = fig.add_subplot(grid[1, :])
+    table_ax.axis("off")
+    table_ax.set_title("(c) 相邻加密级的全场差与验收", loc="left", fontsize=11, pad=8)
+    table = table_ax.table(
+        cellText=table_rows,
+        colLabels=["方向", "相邻级别", "全场 ΔC / (kg/kg)", "全场 ΔT / °C", "|Δt*| / s", "验收"],
+        colWidths=[0.09, 0.25, 0.20, 0.18, 0.16, 0.12],
+        cellLoc="center", bbox=[0, 0, 1, 0.94],
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    for (row, col), cell in table.get_celld().items():
+        cell.set_edgecolor("#D5DCE0")
+        cell.set_linewidth(0.45)
+        if row == 0:
+            cell.set_facecolor("#EAF0F3")
+            cell.set_text_props(weight="bold")
+        else:
+            cell.set_facecolor("#F8FAFB" if row % 2 else "white")
+            if table_rows[row - 1][-1] == "未通过" and col in (2, 5):
+                cell.set_text_props(color="#B4433D", weight="bold")
+    targets = report["targets"]["thresholds"]
+    note_ax = fig.add_subplot(grid[2, :])
+    note_ax.axis("off")
+    note_ax.text(
+        0, 0.92,
+        f"验收：ΔC ≤ {targets['field_C_kg_kg']:g} kg/kg；"
+        f"ΔT ≤ {targets['field_T_C']:g} °C；|Δt*| ≤ {targets['event_change_s']:g} s。"
+        f"含水率观察阶：{'，'.join(orders)}。",
+        transform=note_ax.transAxes, va="top", fontsize=8.7, color="#505960",
+    )
+    note_ax.text(
+        0, 0.26, "最细级作为参考，自差为 0；上述差值均不是连续解误差界或工艺精度保证。",
+        transform=note_ax.transAxes, va="top", fontsize=8.7, color="#505960",
+    )
     save_figure(
-        fig,
-        "06_numerical_convergence",
-        ["review/verification.json", "review/acceptance_targets.json"],
-        "数据来自实际执行的相邻加密；差值是经验精度指标，不是严格误差上界。",
+        fig, "06_numerical_convergence", list(dict.fromkeys(sources)),
+        "两组均展示三级实际计算结果，相对本组最细解的时长差按存档事件直接计算。"
+        "红圈标记主方案选用的网格或时间倍率；表格保留粗级未通过及全部相邻场差。"
+        "参考解自差为零不代表真实误差为零，观察阶不是严格精度证明。",
         manifest,
     )
+    manifest[-1]["convergence_levels"] = evidence
 
 
 def plot_scenarios(report: dict, meta: dict, manifest: list) -> None:
@@ -622,28 +794,59 @@ def workbook_previews(manifest: list) -> None:
 
 
 def main() -> None:
-    """Generate all required figures after validating the numerical delivery manifest."""
+    """Generate all or selected figures while preserving the numerical delivery."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--require-verified",
         action="store_true",
         help="Require verified data (also enforced by default)",
     )
+    parser.add_argument(
+        "--figures", nargs="+", choices=FIGURE_NAMES,
+        help="Regenerate selected groups and preserve other verified figure entries",
+    )
     args = parser.parse_args()
-    del args
+    selected = set(args.figures) if args.figures else None
     font = configure_style()
-    report, meta, summary, env, radius, before = load_verified()
+    report, meta, summary, env, radius, before = load_verified(selected)
+    manifest_path = IMAGES / "figure_manifest.json"
+    retained = []
+    if selected is not None and manifest_path.exists():
+        previous = read_json(manifest_path)
+        if (
+            previous["solve_code_sha256"] != meta["identity"]["solve_code_sha256"]
+            or previous["verification_sha256"]
+            != sha256(OUT / "review/verification.json")
+        ):
+            raise RuntimeError("Existing figure batch is stale; regenerate all figures")
+        for entry in previous["figures"]:
+            if entry["name"] in selected:
+                continue
+            if "svg_sha256" in entry:
+                if sha256(IMAGES / f"{entry['name']}.svg") != entry["svg_sha256"]:
+                    raise RuntimeError(f"Retained figure altered: {entry['name']}")
+            entry.setdefault("plot_code_sha256", previous["plot_code_sha256"])
+            entry.setdefault("visual_review", previous["visual_review"])
+            retained.append(entry)
     IMAGES.mkdir(parents=True, exist_ok=True)
     PREVIEWS.mkdir(parents=True, exist_ok=True)
     figures = []
-    plot_inputs(env, radius, meta, figures)
-    plot_history(summary, meta, figures)
-    plot_profiles(summary, meta, radius, figures)
-    plot_heatmap(report, meta, summary, radius, figures)
-    plot_temperature(summary, meta, figures)
-    plot_convergence(report, meta, figures)
-    plot_scenarios(report, meta, figures)
-    workbook_previews(figures)
+    jobs = (
+        (FIGURE_NAMES[0], plot_inputs, (env, radius, meta)),
+        (FIGURE_NAMES[1], plot_history, (summary, meta)),
+        (FIGURE_NAMES[2], plot_profiles, (summary, meta, radius)),
+        (FIGURE_NAMES[3], plot_heatmap, (report, meta, summary, radius)),
+        (FIGURE_NAMES[4], plot_temperature, (summary, meta)),
+        (FIGURE_NAMES[5], plot_convergence, (report, meta)),
+        (FIGURE_NAMES[6], plot_scenarios, (report, meta)),
+    )
+    for name, function, arguments in jobs:
+        if selected is None or name in selected:
+            function(*arguments, figures)
+    regenerated = [entry["name"] for entry in figures]
+    if selected is None:
+        workbook_previews(figures)
+    figures = sorted([*retained, *figures], key=lambda entry: entry["name"])
     for path, digest in before.items():
         if sha256(Path(path)) != digest:
             raise RuntimeError("Numerical data changed during plotting")
@@ -658,14 +861,17 @@ def main() -> None:
             "openpyxl": openpyxl.__version__,
         },
         "plot_code_sha256": sha256(Path(__file__).resolve()),
+        "plot_code_scope": "Latest invocation; each figure retains its generating source",
+        "regenerated_figures": regenerated,
         "solve_code_sha256": meta["identity"]["solve_code_sha256"],
         "verification_sha256": sha256(OUT / "review/verification.json"),
         "main_case": report["main"],
         "numerical_preservation": "PASS",
+        "validated_source_files": len(before),
         "PNG_outputs_read": False,
         "figures": figures,
     }
-    (IMAGES / "figure_manifest.json").write_text(
+    manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, allow_nan=False),
         encoding="utf-8",
     )
@@ -673,7 +879,10 @@ def main() -> None:
         json.dumps(
             {
                 "status": "PASS",
-                "scientific_figure_groups": 7,
+                "scientific_figure_groups": sum(
+                    "svg_sha256" in entry for entry in figures
+                ),
+                "regenerated_figures": regenerated,
                 "font": font,
                 "preview_directory": str(PREVIEWS),
             },
