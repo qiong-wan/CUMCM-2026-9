@@ -1,0 +1,44 @@
+{
+  "status": "PASS",
+  "checks": {
+    "appendix4_properties_and_kelvin": "PASS",
+    "zero_C_rejected": "PASS",
+    "kelvin_rejected": "PASS",
+    "nonfinite_rejected": "PASS",
+    "underflow_rejected": "PASS",
+    "pure_shrink_without_moisture_exchange": "PASS",
+    "uniform_thermal_equilibrium": "PASS",
+    "shared_internal_flux_cancellation": "PASS",
+    "control_weights_and_axis": "PASS",
+    "constant_radius_reduction": "PASS",
+    "appendix3_is_distinct": "PASS",
+    "forced_nonlinear_failure": "PASS",
+    "radius_extrapolation_rejected": "PASS",
+    "independent_BDF_time_integration": "PASS",
+    "function_docstrings": "PASS",
+    "plotting_syntax_and_docstrings": "PASS",
+    "completed_retry_reuse": "PASS"
+  },
+  "property_samples_a_k_D": [
+    [
+      3358725.352112676,
+      1647891.304347826
+    ],
+    [
+      0.26366197183098594,
+      0.14608695652173914
+    ],
+    [
+      1.047112298949363e-09,
+      3.806169274383754e-10
+    ]
+  ],
+  "BDF_field_difference_T_C": [
+    3.750098898080978e-09,
+    3.8888092301903043e-08
+  ],
+  "BDF_evaluations": 288,
+  "independent_check_scope": "N=80, 0..60 s; independent time integrator, shared spatial operator",
+  "missing_docstrings": [],
+  "source_sha256": "c61d4a4aa5de254af56374b84dfb92d2aebda0bc1cf51babf677987ec656b42f"
+}

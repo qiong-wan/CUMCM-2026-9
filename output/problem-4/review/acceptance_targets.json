@@ -1,0 +1,18 @@
+{
+  "thresholds": {
+    "field_C_kg_kg": 5e-05,
+    "field_T_C": 5e-05,
+    "event_change_s": 5.0,
+    "balance_relative": 1e-07,
+    "robin_heat_W_m2": 0.001,
+    "robin_moisture_kg_kg_m_s": 1e-09,
+    "axis_T_C_m": 1e-05,
+    "axis_C_kg_kg_m": 1e-05,
+    "event_local_change_s": 0.01,
+    "independent_T_C": 2e-05,
+    "independent_C_kg_kg": 2e-05
+  },
+  "source_sha256": "c61d4a4aa5de254af56374b84dfb92d2aebda0bc1cf51babf677987ec656b42f",
+  "declared_before_runs": true,
+  "rationale": "C、T 最细场差小于四位小数半单位；时长差另限 5 s；差值非严格误差界。独立平衡相对误差 1e-7；热 Robin 1e-3 W/m2；湿 Robin 1e-9 (kg/kg)m/s。0..60 s 启动场、全部共同 60 s 全场、表面 2% 薄层、终点前 1 h 全部覆盖。"
+}

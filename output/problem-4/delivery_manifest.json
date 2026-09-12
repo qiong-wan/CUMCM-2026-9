@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "main": "cases\\main-fd65219ad643f710",
+  "source_sha256": "c61d4a4aa5de254af56374b84dfb92d2aebda0bc1cf51babf677987ec656b42f",
+  "inputs": {
+    "problem.pdf": "052d8014bff5727c019b72e44fdffaf5c145ce04050dd938baaf3527db331736",
+    "data/附件1.xlsx": "7ef32870abeef420b89560b2530ff60dfe4255917805151d89988d0311af9dd7",
+    "data/附件2.xlsx": "5563acbfa4b4afb10cc6c03e2207e5369bf39da27576672aff14cc5c32e704af",
+    "data/附件3/result4.xlsx": "86e9300ffa3d30c43de895ea6723da943e85b8740b137bcae5af7107f076eeac"
+  },
+  "verification_sha256": "71ff26efc046b891742be9e1ba23d942348c54b71ec030632671008cf672a2cc",
+  "main_metadata_sha256": "ceb47b4e4ce48a4a59df17432c9ce8711c4015a9d71b69814d7f574e5880c825",
+  "files": {
+    "result4.xlsx": "d68fd7c09554df805c8465c11d9155d3d8ab3d8c99a8ac88c6fd83667831146e",
+    "table6.md": "ca10a74c1eae2b47dd204b5be6e313a815f3f686a02aa8d51c38a41cac1bfb92",
+    "table6_moisture.csv": "d83739b76c3d7e779ddd5ccb3229cb99bf3dcb21fc595a40c86eb87541ab03bc",
+    "data/radius_history.csv": "5d48e0c9b0d5498903ac7f872dddcd61763cfa62d8a1ab7fa80cf33eedbaab67",
+    "data/ambient_observed.csv": "cf5237bba0a2bba3597f9b2c645329978c462861284d375d2ab11c5f187a0953",
+    "data/radius_observed_SI.csv": "b6705e1b8532b86a1d10d137cb01801fd27d1aac497495198c03ac53214524ac",
+    "结果与验证.md": "007f8817252d8a6ed8531a7b651dc3622ec36b2b02747b7df648c2ab54b92816",
+    "review/delivery_checks.json": "590e14cb30bed7fa38597e13366a17e5f2bbf86eebb7e990a20cf1188cda751f"
+  }
+}

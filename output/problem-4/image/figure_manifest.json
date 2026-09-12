@@ -1,0 +1,156 @@
+{
+  "status": "PASS",
+  "automated_visual_checks": "PASS",
+  "visual_review": "PASS",
+  "visual_review_record": "../review/图像视觉核查.md",
+  "font": "Microsoft YaHei",
+  "plot_dependencies": {
+    "matplotlib": "3.9.3",
+    "numpy": "2.2.0",
+    "openpyxl": "3.1.5"
+  },
+  "plot_code_sha256": "9613b2fe660a80db07dac2665e3da0d2472e957f2a509adf411ce425325a0267",
+  "solve_code_sha256": "c61d4a4aa5de254af56374b84dfb92d2aebda0bc1cf51babf677987ec656b42f",
+  "verification_sha256": "71ff26efc046b891742be9e1ba23d942348c54b71ec030632671008cf672a2cc",
+  "main_case": "cases\\main-fd65219ad643f710",
+  "numerical_preservation": "PASS",
+  "PNG_outputs_read": false,
+  "figures": [
+    {
+      "name": "01_inputs_and_radius",
+      "files": [
+        "01_inputs_and_radius.svg",
+        "01_inputs_and_radius.png"
+      ],
+      "svg_sha256": "9fc3ce739d34f4df4efce82b4f7e622436590ba60db73018fb3cdf1c50b6f7ee",
+      "preview": "D:\\CUMCM\\tmp\\problem4_figure_previews\\01_inputs_and_radius.jpg",
+      "sources": [
+        "data/ambient_observed.csv",
+        "data/radius_observed_SI.csv"
+      ],
+      "scope_and_limit": "环境在 4 h 后为假设；半径数据仅覆盖 72 h，内部收缩方式不是外半径数据唯一识别的。",
+      "text_bounds": "PASS",
+      "nonblank_fraction": 0.050411055988660525,
+      "font_glyphs": "PASS",
+      "dpi": 320
+    },
+    {
+      "name": "02_moisture_history",
+      "files": [
+        "02_moisture_history.svg",
+        "02_moisture_history.png"
+      ],
+      "svg_sha256": "545f3b029a854b8397931f53da3c15b1e651a68c19e9c81b4e9cac18cbeaf5f2",
+      "preview": "D:\\CUMCM\\tmp\\problem4_figure_previews\\02_moisture_history.jpg",
+      "sources": [
+        "main/summary.npz",
+        "main/metadata.json"
+      ],
+      "scope_and_limit": "中心与最大值可重合；严格判据使用未舍入全部节点；事件夹逼精度不等于累计数值精度。",
+      "text_bounds": "PASS",
+      "nonblank_fraction": 0.06306006493506494,
+      "font_glyphs": "PASS",
+      "dpi": 320
+    },
+    {
+      "name": "03_actual_radius_profiles",
+      "files": [
+        "03_actual_radius_profiles.svg",
+        "03_actual_radius_profiles.png"
+      ],
+      "svg_sha256": "5762f2f9591e40abc8040a738bbf86f89bbfd16762fe14904c70d105af107175",
+      "preview": "D:\\CUMCM\\tmp\\problem4_figure_previews\\03_actual_radius_profiles.jpg",
+      "sources": [
+        "main/summary.npz",
+        "data/radius_observed_SI.csv"
+      ],
+      "scope_and_limit": "曲线止于各自真实表面；每 6 h 加严格结束时刻；横坐标不是归一化半径。",
+      "text_bounds": "PASS",
+      "nonblank_fraction": 0.07849430639214529,
+      "font_glyphs": "PASS",
+      "dpi": 320
+    },
+    {
+      "name": "04_moisture_space_time",
+      "files": [
+        "04_moisture_space_time.svg",
+        "04_moisture_space_time.png"
+      ],
+      "svg_sha256": "3e4e4a5c76513a215157c29b6c6c65c3a618eea95880900b71073dd17ba5fae1",
+      "preview": "D:\\CUMCM\\tmp\\problem4_figure_previews\\04_moisture_space_time.jpg",
+      "sources": [
+        "cases\\main-fd65219ad643f710/fields_*.npz",
+        "data/radius_observed_SI.csv"
+      ],
+      "scope_and_limit": "一维径向时空图；灰色为药材外部。色块来自保存时刻，未求解二维轴向场。",
+      "text_bounds": "PASS",
+      "nonblank_fraction": 0.5106216503374514,
+      "font_glyphs": "PASS",
+      "dpi": 320
+    },
+    {
+      "name": "05_temperature_and_diffusion",
+      "files": [
+        "05_temperature_and_diffusion.svg",
+        "05_temperature_and_diffusion.png"
+      ],
+      "svg_sha256": "913555534bf7e575c67dae37288f09251adb357034f86c54b18f81b9060ca120",
+      "preview": "D:\\CUMCM\\tmp\\problem4_figure_previews\\05_temperature_and_diffusion.jpg",
+      "sources": [
+        "main/summary.npz"
+      ],
+      "scope_and_limit": "扩散系数按保存的局部温度与干基含水率重构，绝对温度进入指数；未重新积分。",
+      "text_bounds": "PASS",
+      "nonblank_fraction": 0.05153276955602537,
+      "font_glyphs": "PASS",
+      "dpi": 320
+    },
+    {
+      "name": "06_numerical_convergence",
+      "files": [
+        "06_numerical_convergence.svg",
+        "06_numerical_convergence.png"
+      ],
+      "svg_sha256": "1ff02e1ae34a0c2f2353cbf31adf5a6c14e0bec6510d05249595340576065c88",
+      "preview": "D:\\CUMCM\\tmp\\problem4_figure_previews\\06_numerical_convergence.jpg",
+      "sources": [
+        "review/verification.json",
+        "review/acceptance_targets.json"
+      ],
+      "scope_and_limit": "数据来自实际执行的相邻加密；差值是经验精度指标，不是严格误差上界。",
+      "text_bounds": "PASS",
+      "nonblank_fraction": 0.050891733333333335,
+      "font_glyphs": "PASS",
+      "dpi": 320
+    },
+    {
+      "name": "07_scenarios_and_sensitivity",
+      "files": [
+        "07_scenarios_and_sensitivity.svg",
+        "07_scenarios_and_sensitivity.png"
+      ],
+      "svg_sha256": "5770ea35ef95c2b3fd3c9ad5d934e2b605470ce02013243b23c6e5a30b102c9e",
+      "preview": "D:\\CUMCM\\tmp\\problem4_figure_previews\\07_scenarios_and_sensitivity.jpg",
+      "sources": [
+        "review/verification.json",
+        "cases/*/metadata.json"
+      ],
+      "scope_and_limit": "4 h 后边界为确定性假设；未达标情景仅报告覆盖内状态，不推断无限烘干时长；效应不普遍可加。",
+      "text_bounds": "PASS",
+      "nonblank_fraction": 0.2812444196428571,
+      "font_glyphs": "PASS",
+      "dpi": 320
+    },
+    {
+      "name": "workbook_preview",
+      "sources": [
+        "result4.xlsx"
+      ],
+      "preview": [
+        "D:\\CUMCM\\tmp\\problem4_figure_previews\\workbook_part1.jpg",
+        "D:\\CUMCM\\tmp\\problem4_figure_previews\\workbook_part2.jpg"
+      ],
+      "scope_and_limit": "保存后工作簿选定行的数值与四位小数格式重构预览；数值逐格校验见 delivery_checks.json。"
+    }
+  ]
+}

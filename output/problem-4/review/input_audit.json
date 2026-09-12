@@ -1,0 +1,106 @@
+{
+  "status": "PASS",
+  "sha256": {
+    "problem.pdf": "052d8014bff5727c019b72e44fdffaf5c145ce04050dd938baaf3527db331736",
+    "data/附件1.xlsx": "7ef32870abeef420b89560b2530ff60dfe4255917805151d89988d0311af9dd7",
+    "data/附件2.xlsx": "5563acbfa4b4afb10cc6c03e2207e5369bf39da27576672aff14cc5c32e704af",
+    "data/附件3/result4.xlsx": "86e9300ffa3d30c43de895ea6723da943e85b8740b137bcae5af7107f076eeac"
+  },
+  "sheets": [
+    {
+      "file": "附件1.xlsx",
+      "sheet": "Sheet1",
+      "headers": [
+        "时间",
+        "温度",
+        "水分浓度"
+      ],
+      "count": 241,
+      "time_range_s": [
+        0.0,
+        14400.0
+      ],
+      "interval_s": 60.0,
+      "minima": [
+        0.0,
+        28.0,
+        0.01963
+      ],
+      "maxima": [
+        14400.0,
+        50.246,
+        0.05025
+      ],
+      "duplicate_time_count": 0,
+      "repeated_radius_values_are_valid": false
+    },
+    {
+      "file": "附件2.xlsx",
+      "sheet": "Sheet1",
+      "headers": [
+        "时间",
+        "半径"
+      ],
+      "count": 145,
+      "time_range_s": [
+        0.0,
+        259200.0
+      ],
+      "interval_s": 1800.0,
+      "minima": [
+        0.0,
+        1.198
+      ],
+      "maxima": [
+        259200.0,
+        2.0
+      ],
+      "duplicate_time_count": 0,
+      "repeated_radius_values_are_valid": true
+    }
+  ],
+  "template_rows": [
+    [
+      "时间\\到药材中心的距离",
+      0,
+      0.1,
+      0.2,
+      "…",
+      "药材表面"
+    ],
+    [
+      60,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      120,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      180,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      "…",
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  ],
+  "anomalies": [],
+  "processing": "只读原始记录；半径 cm 转 m 存入独立对象；不删改、填补、平滑或拟合。"
+}

@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "cells_checked": 67100,
+  "blank_mask_cells": 20938,
+  "max_roundtrip_difference": 4.440892098500626e-16,
+  "table6_rows": 9,
+  "table6_distance_cm": [
+    0.0,
+    0.5,
+    1.0
+  ]
+}
