@@ -599,7 +599,7 @@ def _simulate_grid(grid_size: int) -> tuple[int, np.ndarray, np.ndarray]:
     """Return fields sampled on the common 0.1 cm output grid."""
     if grid_size % N_OUT != 0:
         raise ValueError(f"网格数{grid_size}不能被输出网格数{N_OUT}整除。")
-    _, temperature, moisture = simulate(
+    _, temperature, moisture, _ = simulate(
         N=grid_size,
         nsub=NSUB,
         sample_step=grid_size // N_OUT,
