@@ -25,7 +25,8 @@ import scipy
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from scipy.integrate import solve_ivp
-from scipy.linalg import solve_banded
+from scipy.linalg import solveh_banded
+from scipy.signal import lfilter
 from scipy.sparse import diags
 from threadpoolctl import threadpool_info, threadpool_limits
 
@@ -48,6 +49,7 @@ START_TIMES = np.array([0.01, 0.1, 1.0, 10.0])
 TARGETS = {
     "field_C_kg_kg": 5e-5,
     "field_T_C": 5e-5,
+    "fluct_field_T_C": 1e-3,
     "event_change_s": 5.0,
     "balance_relative": 1e-7,
     "robin_heat_W_m2": 1e-3,
@@ -301,6 +303,35 @@ class Config:
     horizon: float = 259200.0
     event_tol: float = 0.001
     method: str = "sdirk2"
+    seed: int | None = None
+    tau_s: float | None = None
+    sigma_scale: float = 1.0
+
+
+def plateau_fluctuation_stats(env: np.ndarray, window_start: float = 12600.0) -> dict:
+    """Estimate plateau mean, residual std and lag-1 autocorrelation per channel."""
+    window = env[env[:, 0] >= window_start]
+    t = window[:, 0]
+    stats = {}
+    for j, key in [(1, "T"), (2, "C")]:
+        y = window[:, j]
+        slope, intercept = np.polyfit(t, y, 1)
+        residual = y - (slope * t + intercept)
+        sigma = float(residual.std(ddof=1))
+        acf1 = (
+            float(np.corrcoef(residual[:-1], residual[1:])[0, 1]) if sigma > 0 else 0.0
+        )
+        z_sample = (residual - residual.mean()) / sigma if sigma > 0 else residual * 0.0
+        stats[key] = {
+            "mean": float(y.mean()),
+            "sigma": sigma,
+            "acf1": acf1,
+            "slope_per_s": float(slope),
+            "kurtosis": float((z_sample**4).mean()),
+            "max_abs_z": float(np.abs(z_sample).max()),
+            "z_sample": [float(v) for v in z_sample],
+        }
+    return stats
 
 
 class Boundary:
@@ -309,26 +340,86 @@ class Boundary:
     def __init__(self, env: np.ndarray, radius: np.ndarray, config: Config):
         """Keep independent read-only observations and calculate the declared tail."""
         self.env_data, self.radius_data, self.config = env, radius, config
+        self.dt_env = 60.0
         window = env[env[:, 0] >= env[-1, 0] - 1800]
-        self.tail = (
-            env[-1, 1:].copy() if config.tail == "last" else window[:, 1:].mean(axis=0)
-        )
         self.mean_window = {
             "start_s": float(window[0, 0]),
             "end_s": float(window[-1, 0]),
             "count": len(window),
             "mean": window[:, 1:].mean(axis=0).tolist(),
         }
+        self.mean_tail = window[:, 1:].mean(axis=0)
+        self.stats = None
+        self.fluct = None
+        if config.tail == "last":
+            self.tail = env[-1, 1:].copy()
+        elif config.tail == "mean30":
+            self.tail = self.mean_tail.copy()
+        elif config.tail == "fluct":
+            self.tail = self.mean_tail.copy()
+            self._build_fluctuation()
+        else:
+            raise ValueError("Tail mode must be last, mean30 or fluct")
+
+    def _build_fluctuation(self) -> None:
+        """Precompute a seeded AR(1) plateau path from the detrended observed window."""
+        self.stats = plateau_fluctuation_stats(self.env_data)
+        sigma = (
+            np.array([self.stats["T"]["sigma"], self.stats["C"]["sigma"]])
+            * self.config.sigma_scale
+        )
+        rng = np.random.default_rng(self.config.seed)
+        grid = np.arange(
+            self.env_data[-1, 0],
+            max(self.config.horizon, self.env_data[-1, 0]) + 3600.0 + self.dt_env,
+            self.dt_env,
+        )
+        z = np.empty((2, grid.size))
+        phi = {}
+        for j, key in enumerate(("T", "C")):
+            if self.config.tau_s is None:
+                p = float(np.clip(self.stats[key]["acf1"], 0.0, 0.95))
+            else:
+                p = float(np.exp(-self.dt_env / self.config.tau_s))
+            phi[key] = p
+            sample = np.asarray(self.stats[key]["z_sample"], dtype=float)
+            if sample.size and sample.std() > 0:
+                sample = (sample - sample.mean()) / sample.std()
+                eps = sample[rng.integers(0, sample.size, grid.size)]
+            else:
+                eps = rng.standard_normal(grid.size)
+            z[j] = np.clip(lfilter([np.sqrt(1.0 - p**2)], [1.0, -p], eps), -4.0, 4.0)
+        self.fluct = {
+            "grid": grid,
+            "z": z,
+            "sigma": sigma,
+            "phi": phi,
+            "dt_env_s": self.dt_env,
+        }
 
     def ambient(self, t: float) -> np.ndarray:
-        """Interpolate all observations; change only the declared interval after 4 h."""
+        """Interpolate observations and apply the declared post-observation scenario."""
         if t < 0:
             raise ValueError("Negative observation time")
-        if t > self.env_data[-1, 0]:
-            return self.tail.copy()
-        return np.array(
-            [np.interp(t, self.env_data[:, 0], self.env_data[:, j]) for j in (1, 2)]
-        )
+        if t <= self.env_data[-1, 0]:
+            return np.array(
+                [np.interp(t, self.env_data[:, 0], self.env_data[:, j]) for j in (1, 2)]
+            )
+        if self.fluct is not None:
+            grid = self.fluct["grid"]
+            if t >= grid[-1]:
+                return self.mean_tail.copy()
+            return np.array(
+                [
+                    np.interp(
+                        t,
+                        grid,
+                        self.mean_tail[j] + self.fluct["sigma"][j] * self.fluct["z"][j],
+                    )
+                    for j in (0, 1)
+                ]
+            )
+        return self.tail.copy()
 
     def radius(self, t: float) -> float:
         """Reject all extrapolation beyond the supplied radius time coverage."""
@@ -339,28 +430,49 @@ class Boundary:
         return float(np.interp(t, self.radius_data[:, 0], self.radius_data[:, 1]))
 
 
-def properties(T: np.ndarray, C: np.ndarray, appendix: int = 4) -> tuple:
-    """Return local positive heat capacity, conductivity, and SI diffusivity."""
-    if not np.isfinite(T).all() or not np.isfinite(C).all():
-        raise FloatingPointError("Nonfinite state")
-    if np.any(C <= 0) or np.any(T + 273.15 <= 0):
-        raise FloatingPointError("Nonpositive C or absolute temperature")
+def thermal(C: np.ndarray, appendix: int = 4) -> tuple:
+    """Return local positive heat capacity and conductivity from moisture alone."""
+    cmin = float(C.min())
+    if not math.isfinite(cmin) or cmin <= 0.0:
+        raise FloatingPointError("Nonpositive or nonfinite moisture")
     with np.errstate(over="raise", under="raise", divide="raise", invalid="raise"):
         fraction = C / (1.0 + C)
         if appendix == 4:
             a = (760.0 + 90.0 * C) * (1850.0 + 2150.0 * fraction)
             k = 0.12 + 0.20 * fraction
-            D = 4.2e-4 * np.exp(-0.30 / C) * np.exp(-3850.0 / (T + 273.15))
         elif appendix == 3:
             a = (650.0 + 128.0 * C) * (1450.0 + 2736.0 * fraction)
             k = 0.21 + 0.38 * fraction
+        else:
+            raise ValueError("Appendix must be 3 or 4")
+    if not (float(a.min()) > 0.0 and float(k.min()) > 0.0):
+        raise FloatingPointError("Nonpositive or nonfinite heat property")
+    return a, k
+
+
+def diffusivity(T: np.ndarray, C: np.ndarray, appendix: int = 4) -> np.ndarray:
+    """Return local positive SI moisture diffusivity from both fields."""
+    tmin, tmax, cmin = float(T.min()), float(T.max()), float(C.min())
+    if not (math.isfinite(tmin) and math.isfinite(tmax)):
+        raise FloatingPointError("Nonfinite temperature")
+    if tmin + 273.15 <= 0.0 or not math.isfinite(cmin) or cmin <= 0.0:
+        raise FloatingPointError("Nonpositive C or absolute temperature")
+    with np.errstate(over="raise", under="raise", divide="raise", invalid="raise"):
+        if appendix == 4:
+            D = 4.2e-4 * np.exp(-0.30 / C) * np.exp(-3850.0 / (T + 273.15))
+        elif appendix == 3:
             D = 2.4e-3 * np.exp(-0.45 / C) * np.exp(-3850.0 / (T + 273.15))
         else:
             raise ValueError("Appendix must be 3 or 4")
-    for value in (a, k, D):
-        if not np.isfinite(value).all() or np.any(value <= 0):
-            raise FloatingPointError("Nonpositive or nonfinite property")
-    return a, k, D
+    if not (float(D.min()) > 0.0):
+        raise FloatingPointError("Nonpositive or nonfinite diffusivity")
+    return D
+
+
+def properties(T: np.ndarray, C: np.ndarray, appendix: int = 4) -> tuple:
+    """Return local positive heat capacity, conductivity, and SI diffusivity."""
+    a, k = thermal(C, appendix)
+    return a, k, diffusivity(T, C, appendix)
 
 
 class Solver:
@@ -379,6 +491,13 @@ class Solver:
         self.weights = np.diff(edges**2)
         self.face_factor = 2.0 * edges[1:-1] / self.dx
         self.ones = np.ones(config.n + 1)
+        self._bands = np.zeros((2, config.n + 1))
+        self._rhs = np.empty(config.n + 1)
+        self._diff = np.empty(config.n)
+        self._flux = np.empty(config.n)
+        self._net_t = np.empty(config.n + 1)
+        self._net_c = np.empty(config.n + 1)
+        self.last_rate = None
         self.max_iter = 0
         self.max_change = 0.0
         self.max_residual = 0.0
@@ -387,9 +506,10 @@ class Solver:
         """Combine two half-cell resistances; explicit radius factors cancel."""
         with np.errstate(over="raise", divide="raise", invalid="raise"):
             face = 2.0 / (1.0 / coefficient[:-1] + 1.0 / coefficient[1:])
-        if not np.isfinite(face).all() or np.any(face <= 0):
+            face *= self.face_factor
+        if not (float(face.min()) > 0.0):
             raise FloatingPointError("Invalid harmonic face property")
-        return self.face_factor * face
+        return face
 
     def net(
         self,
@@ -398,12 +518,15 @@ class Solver:
         transfer: float,
         ambient: float,
         radius: float,
+        out: np.ndarray | None = None,
     ) -> np.ndarray:
         """Assemble each internal face once, and add the actual surface exchange."""
-        shared = G * np.diff(u)
-        result = np.zeros_like(u)
-        result[:-1] += shared
-        result[1:] -= shared
+        result = self._net_t if out is None else out
+        np.subtract(u[1:], u[:-1], out=self._diff)
+        np.multiply(G, self._diff, out=self._flux)
+        result[:] = 0.0
+        result[:-1] += self._flux
+        result[1:] -= self._flux
         result[-1] += 2.0 * radius * transfer * (ambient - u[-1])
         return result
 
@@ -418,16 +541,22 @@ class Solver:
         dt: float,
     ) -> np.ndarray:
         """Solve an increment system to reduce temperature subtraction cancellation."""
-        diagonal = capacity * radius**2 * self.weights / dt
+        ab = self._bands
+        diagonal = ab[1]
+        np.multiply(self.weights, capacity, out=diagonal)
+        diagonal *= radius * radius
+        diagonal /= dt
         diagonal[:-1] += G
         diagonal[1:] += G
         diagonal[-1] += 2.0 * radius * transfer
-        bands = np.zeros((3, len(base)))
-        bands[0, 1:], bands[1], bands[2, :-1] = -G, diagonal, -G
-        increment = solve_banded(
-            (1, 1),
-            bands,
-            self.net(base, G, transfer, ambient, radius),
+        ab[0, 0] = 0.0
+        ab[0, 1:] = -G
+        self.net(base, G, transfer, ambient, radius, out=self._rhs)
+        increment = solveh_banded(
+            ab,
+            self._rhs,
+            lower=False,
+            overwrite_b=True,
             check_finite=False,
         )
         return base + increment
@@ -445,11 +574,11 @@ class Solver:
         ambient, radius = self.boundary.ambient(t), self.boundary.radius(t)
         volume = radius**2 * self.weights
         for iteration in range(1, max_iter + 1):
-            a, k, _ = properties(T, C, self.config.appendix)
+            a, k = thermal(C, self.config.appendix)
             T1 = self.linear(
                 base[0], a, self.conductance(k), self.h, ambient[0], radius, dt
             )
-            _, _, D = properties(T1, C, self.config.appendix)
+            D = diffusivity(T1, C, self.config.appendix)
             C1 = self.linear(
                 base[1], self.ones, self.conductance(D), self.hm, ambient[1], radius, dt
             )
@@ -459,7 +588,8 @@ class Solver:
             T, C = T1, C1
             if change > ITER_TOL:
                 continue
-            a, k, D = properties(T, C, self.config.appendix)
+            a, k = thermal(C, self.config.appendix)
+            D = diffusivity(T, C, self.config.appendix)
             GT, GC = self.conductance(k), self.conductance(D)
             defects = []
             for u, old, capacity, G, transfer, amb, scale in (
@@ -471,7 +601,9 @@ class Solver:
                 diagonal[:-1] += G
                 diagonal[1:] += G
                 diagonal[-1] += 2 * radius * transfer
-                residual = mass * (u - old) - self.net(u, G, transfer, amb, radius)
+                residual = mass * (u - old) - self.net(
+                    u, G, transfer, amb, radius, out=self._rhs
+                )
                 defects.append(float(np.max(np.abs(residual) / (diagonal * scale))))
             defect = max(defects)
             if defect <= RES_TOL:
@@ -495,9 +627,15 @@ class Solver:
         if self.config.method == "be":
             state, _, balance = self.implicit(old, old, t + dt, dt)
             return state, dt * balance
-        stage1, rate1, balance1 = self.implicit(old, old, t + GAMMA * dt, GAMMA * dt)
+        guess = old
+        if self.last_rate is not None:
+            guess = old + GAMMA * dt * self.last_rate
+            if guess[1].min() <= 0.0 or not math.isfinite(float(guess[0].min())):
+                guess = old
+        stage1, rate1, balance1 = self.implicit(old, guess, t + GAMMA * dt, GAMMA * dt)
         base2 = old + dt * (1.0 - GAMMA) * rate1
         stage2, _, balance2 = self.implicit(base2, stage1, t + dt, GAMMA * dt)
+        self.last_rate = (stage2 - old) / dt
         return stage2, dt * ((1.0 - GAMMA) * balance1 + GAMMA * balance2)
 
     def rhs(self, t: float, state: np.ndarray) -> np.ndarray:
@@ -508,9 +646,24 @@ class Solver:
         volume = radius**2 * self.weights
         return np.stack(
             [
-                self.net(T, self.conductance(k), self.h, ambient[0], radius)
+                self.net(
+                    T,
+                    self.conductance(k),
+                    self.h,
+                    ambient[0],
+                    radius,
+                    out=self._net_t,
+                )
                 / (a * volume),
-                self.net(C, self.conductance(D), self.hm, ambient[1], radius) / volume,
+                self.net(
+                    C,
+                    self.conductance(D),
+                    self.hm,
+                    ambient[1],
+                    radius,
+                    out=self._net_c,
+                )
+                / volume,
             ]
         )
 
@@ -812,18 +965,24 @@ def simulate(
                 )
                 last_print = time.perf_counter()
         flush_chunk()
-        np.savez_compressed(
-            path / "summary.npz",
-            x=solver.x,
-            weights=solver.weights,
-            history=np.asarray(history),
-            check_times=np.asarray(checks_times),
-            check_states=np.asarray(checks_states),
-            final_state=state,
-            event_seed=event_seed,
-            event_t0=event_t0,
-            event_width=event_width,
-        )
+        payload = {
+            "x": solver.x,
+            "weights": solver.weights,
+            "history": np.asarray(history),
+            "check_times": np.asarray(checks_times),
+            "check_states": np.asarray(checks_states),
+            "final_state": state,
+            "event_seed": event_seed,
+            "event_t0": event_t0,
+            "event_width": event_width,
+        }
+        if boundary.fluct is not None:
+            payload["ambient_grid"] = boundary.fluct["grid"]
+            payload["ambient_path"] = (
+                boundary.mean_tail[:, None]
+                + boundary.fluct["sigma"][:, None] * boundary.fluct["z"]
+            )
+        np.savez_compressed(path / "summary.npz", **payload)
         mass_relative = max_mass_defect / C0
         heat_relative = max_heat_defect / max(abs(total[0]), abs(total[1]), 1.0)
         meta = {
@@ -839,6 +998,14 @@ def simulate(
             "end_max_C": float(state[1].max()),
             "end_argmax_x": float(solver.x[np.argmax(state[1])]),
             "environment_tail": boundary.tail.tolist(),
+            "environment_mode": config.tail,
+            "environment_seed": config.seed,
+            "environment_tau_s": config.tau_s,
+            "environment_sigma_scale": config.sigma_scale,
+            "environment_ar1_phi": (
+                boundary.fluct["phi"] if boundary.fluct is not None else None
+            ),
+            "fluctuation_stats": boundary.stats,
             "mean30_window": boundary.mean_window,
             "steps": accepted,
             "rejected_steps": rejected,
@@ -893,7 +1060,7 @@ def compare_cases(coarse: Path, fine: Path) -> dict:
     """Compare every common saved full field, surface layer and true-distance output point."""
     ma, mb = load_case(coarse), load_case(fine)
     ca, cb = ma["identity"]["config"], mb["identity"]["config"]
-    for key in ("appendix", "shrink", "tail", "horizon"):
+    for key in ("appendix", "shrink", "tail", "horizon", "seed", "tau_s", "sigma_scale"):
         if ca[key] != cb[key]:
             raise ValueError("Convergence cases have different physical inputs")
     xa, xb = np.linspace(0, 1, ca["n"] + 1), np.linspace(0, 1, cb["n"] + 1)
@@ -920,9 +1087,11 @@ def compare_cases(coarse: Path, fine: Path) -> dict:
         # Evaluate the coarse piecewise-linear field at every fine node, including midpoints.
         interpolation = np.stack([np.interp(xb, xa, u) for u in ua])
         difference = np.abs(interpolation - ub)
-        selections = {"full": np.ones(len(xb), dtype=bool), "surface_layer": xb >= 0.98}
+        selections = {"surface_layer": xb >= 0.98}
         if ta <= 60:
             selections["startup"] = np.ones(len(xb), dtype=bool)
+        else:
+            selections["full"] = np.ones(len(xb), dtype=bool)
         if ta >= min(ma["end_s"], mb["end_s"]) - 3600:
             selections["late"] = np.ones(len(xb), dtype=bool)
         for key, mask in selections.items():
@@ -955,9 +1124,12 @@ def compare_cases(coarse: Path, fine: Path) -> dict:
     event_delta = None
     if ma["event"] is not None and mb["event"] is not None:
         event_delta = mb["event"]["critical_s"] - ma["event"]["critical_s"]
+    field_T_target = (
+        TARGETS["fluct_field_T_C"] if ca["tail"] == "fluct" else TARGETS["field_T_C"]
+    )
     passed = (
         metrics["full"]["C"] < TARGETS["field_C_kg_kg"]
-        and metrics["full"]["T"] < TARGETS["field_T_C"]
+        and metrics["full"]["T"] < field_T_target
         and (
             abs(event_delta) < TARGETS["event_change_s"]
             if event_delta is not None
@@ -974,6 +1146,7 @@ def compare_cases(coarse: Path, fine: Path) -> dict:
         "matched_full_states": count,
         "last_common_s": last_common,
         "metrics": metrics,
+        "field_T_target_C": field_T_target,
         "event_delta_s": event_delta,
     }
 
@@ -1240,22 +1413,32 @@ def verification(
     start_n: int = 1600,
     max_n: int = 51200,
     workers: int = 3,
+    prod_tail: str = "fluct",
+    prod_seed: int = 0,
 ) -> dict:
     """Execute separate space/time refinement, local event and scenario validations."""
     targets = {
         "thresholds": TARGETS,
         "source_sha256": sha256(SOURCE),
         "declared_before_runs": True,
+        "production_tail": prod_tail,
+        "production_seed": prod_seed if prod_tail == "fluct" else None,
         "rationale": "C、T 最细场差小于四位小数半单位；时长差另限 5 s；差值非严格误差界。"
         "独立平衡相对误差 1e-7；热 Robin 1e-3 W/m2；湿 Robin 1e-9 (kg/kg)m/s。"
-        "0..60 s 启动场、全部共同 60 s 全场、表面 2% 薄层、终点前 1 h 全部覆盖。",
+        "0..60 s 启动场、全部共同 60 s 全场、表面 2% 薄层、终点前 1 h 全部覆盖。"
+        "生产族默认采用随机波动环境（与第三问一致），热场加密阈值单独放宽到 1e-3 °C，湿场仍 5e-5 kg/kg。",
     }
     json_write(OUT / "review/acceptance_targets.json", targets)
     tests = self_tests(env, radius)
+    prod_kwargs = {"tail": prod_tail}
+    if prod_tail == "fluct":
+        prod_kwargs["seed"] = prod_seed
     paths, spatial = [], []
     n = start_n
     while n <= max_n:
-        current = simulate(Config(n=n), f"space_n{n}", env, radius, audit_report)
+        current = simulate(
+            Config(n=n, **prod_kwargs), f"space_n{n}", env, radius, audit_report
+        )
         paths.append(current)
         if len(paths) > 1:
             comparison = compare_cases(paths[-2], paths[-1])
@@ -1271,7 +1454,10 @@ def verification(
         )
     finest = paths[-1]
     time_paths = run_batch(
-        [("main", Config(n=n, factor=0.5)), ("time_quarter", Config(n=n, factor=0.25))],
+        [
+            ("main", Config(n=n, factor=0.5, **prod_kwargs)),
+            ("time_quarter", Config(n=n, factor=0.25, **prod_kwargs)),
+        ],
         env,
         radius,
         audit_report,
@@ -1307,6 +1493,7 @@ def verification(
         ("appendix3_fixed", 3, False, "last"),
         ("appendix3_shrink", 3, True, "last"),
         ("appendix4_fixed", 4, False, "last"),
+        ("appendix4_last", 4, True, "last"),
         ("appendix4_mean30", 4, True, "mean30"),
     ]
     jobs = []
@@ -1325,6 +1512,7 @@ def verification(
                         appendix=appendix,
                         shrink=shrink,
                         tail=tail,
+                        seed=0 if tail == "fluct" else None,
                     ),
                 )
             )
@@ -1621,7 +1809,12 @@ def write_report(
         "",
         "原始题面、附件和模板只读；重新逐行审计未发现需要处理的异常。半径 cm 转 m，分段线性插值，未拟合或平滑。",
         f"附件 1 有 {audit_report['sheets'][0]['count']} 条观测，附件 2 有 {audit_report['sheets'][1]['count']} 条观测。",
-        f"主方案 4 h 后环境温度 {meta['environment_tail'][0]:.9g} °C、环境干基水分浓度 {meta['environment_tail'][1]:.9g} kg/kg 保持末值。",
+        (
+            f"主方案 4 h 后环境温度 {meta['environment_tail'][0]:.9g} °C、环境干基水分浓度 {meta['environment_tail'][1]:.9g} kg/kg 保持末值。"
+            if meta.get("environment_mode", "last") != "fluct"
+            else f"主方案 4 h 后环境取末 30 min 均值 {meta['environment_tail'][0]:.9g} °C、"
+            f"{meta['environment_tail'][1]:.9g} kg/kg，并叠加固定种子 {meta['environment_seed']} 的 AR(1) 随机波动（与第三问生产情景一致）。"
+        ),
         "长度固定 0.25 m，骨架均匀径向收缩；初值 28 °C、2.55 kg/kg、半径 0.02 m。实测半径适用范围止于 72 h。",
         "主方程、边界、干基守恒消项和密度解释分别对应原推导公式（57）至（61）、（25）至（36）、（89）至（90）。",
         "实现推导与全部指标定义见 [模型与算法说明](../../src/problem-4/问题4_模型与算法说明.md)。",
@@ -1691,7 +1884,8 @@ def write_report(
         "|---|---:|---:|---|",
     ]
     lines.append(
-        f"| 附录 4 实测收缩（主方案） | {event['critical_s']/3600:.8f} | {meta['end_max_C']:.9g} | PASS |"
+        f"| 附录 4 实测收缩（主方案·随机波动 seed {meta.get('environment_seed')}） | "
+        f"{event['critical_s']/3600:.8f} | {meta['end_max_C']:.9g} | PASS |"
     )
     for case in report["scenarios"]:
         m = json_read(OUT / case["path"] / "metadata.json")
@@ -1699,7 +1893,9 @@ def write_report(
             "appendix3_fixed": "附录 3 固定半径",
             "appendix3_shrink": "附录 3 实测收缩",
             "appendix4_fixed": "附录 4 固定半径",
+            "appendix4_last": "附录 4 收缩、末值延拓",
             "appendix4_mean30": "附录 4 收缩、末 30 min 均值",
+            "appendix4_fluct": "附录 4 收缩、随机波动（种子 0）",
         }[case["name"]]
         duration = (
             f"{m['event']['critical_s']/3600:.8f}" if m["event"] else "72 h 内未达标"
@@ -1710,6 +1906,7 @@ def write_report(
     lines += [
         "",
         f"均值情景窗口及算术均值：{meta['mean30_window']}。观测区间不变，4 h 后立即切换均值，可能有小跳变。",
+        "主方案随机波动按观测末段去趋势残差估计标准差与滞后一阶自相关，新息自助重采样，种子固定，事件可复现；对照情景分别取末值和末 30 min 均值。",
         "对照均从相同初值出发，并进行各自空间与时间核查。由原推导公式（91）至（94），附录物性变化与收缩几何共同决定历程，不能仅按末半径缩放第三问时长；非线性效应不具有普遍可加性。",
         "",
         "## 表格与运行证据",
@@ -1754,7 +1951,14 @@ def main() -> None:
     parser.add_argument("--factor", type=float, default=1.0)
     parser.add_argument("--appendix", type=int, choices=(3, 4), default=4)
     parser.add_argument("--fixed", action="store_true")
-    parser.add_argument("--tail", choices=("last", "mean30"), default="last")
+    parser.add_argument("--tail", choices=("last", "mean30", "fluct"), default="last")
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--tau", type=float, default=None)
+    parser.add_argument("--sigma-scale", type=float, default=1.0)
+    parser.add_argument(
+        "--prod-tail", choices=("last", "mean30", "fluct"), default="fluct"
+    )
+    parser.add_argument("--prod-seed", type=int, default=0)
     parser.add_argument("--stop-s", type=float, default=259200.0)
     parser.add_argument("--method", choices=("sdirk2", "be"), default="sdirk2")
     args = parser.parse_args()
@@ -1794,6 +1998,9 @@ def run_commands(args: argparse.Namespace) -> None:
                 tail=args.tail,
                 horizon=args.stop_s,
                 method=args.method,
+                seed=args.seed,
+                tau_s=args.tau,
+                sigma_scale=args.sigma_scale,
             ),
             args.case,
             env,
@@ -1818,7 +2025,14 @@ def run_commands(args: argparse.Namespace) -> None:
         before = protected_hashes()
         json_write(OUT / "review/protected_before.json", before)
         report = verification(
-            env, radius, audit_report, args.n, args.max_n, args.workers
+            env,
+            radius,
+            audit_report,
+            args.n,
+            args.max_n,
+            args.workers,
+            args.prod_tail,
+            args.prod_seed,
         )
         after = protected_hashes()
         json_write(OUT / "review/protected_after.json", after)

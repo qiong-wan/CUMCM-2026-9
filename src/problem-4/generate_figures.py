@@ -37,12 +37,15 @@ FIGURE_NAMES = (
     "05_temperature_and_diffusion",
     "06_numerical_convergence",
     "07_scenarios_and_sensitivity",
+    "08_ambient_fluctuation",
 )
 LABELS = {
     "appendix3_fixed": "附录 3 · 固定半径",
     "appendix3_shrink": "附录 3 · 实测收缩",
     "appendix4_fixed": "附录 4 · 固定半径",
+    "appendix4_last": "附录 4 · 末值延拓",
     "appendix4_mean30": "附录 4 · 末段均值",
+    "appendix4_fluct": "附录 4 · 随机波动",
 }
 
 
@@ -123,7 +126,8 @@ def load_verified(selected: set[str] | None = None) -> tuple:
         "verification_sha256"
     ]
     case_paths = [report["main"]]
-    if "07_scenarios_and_sensitivity" in requested:
+    scenario_relatives = {case["path"] for case in report["scenarios"]}
+    if {"07_scenarios_and_sensitivity", "08_ambient_fluctuation"} & requested:
         case_paths.extend(case["path"] for case in report["scenarios"])
     for relative in case_paths:
         path = OUT / relative
@@ -133,10 +137,17 @@ def load_verified(selected: set[str] | None = None) -> tuple:
             raise RuntimeError("Case metadata altered")
         numerical_hashes[str(path / "metadata.json")] = expected_meta
         for filename, digest in meta["files"].items():
-            if selected is not None and not (
-                relative == report["main"]
-                and ("04_moisture_space_time" in requested or filename == "summary.npz")
-            ):
+            keep = selected is None
+            if selected is not None:
+                keep = (
+                    relative == report["main"]
+                    and ("04_moisture_space_time" in requested or filename == "summary.npz")
+                ) or (
+                    "08_ambient_fluctuation" in requested
+                    and filename == "summary.npz"
+                    and relative in scenario_relatives
+                )
+            if not keep:
                 continue
             source = path / filename
             if sha256(source) != digest:
@@ -250,47 +261,138 @@ def save_figure(fig, name: str, sources: list, scope: str, manifest: list) -> No
 
 
 def plot_inputs(
-    env: np.ndarray, radius: np.ndarray, meta: dict, manifest: list
+    env: np.ndarray,
+    radius: np.ndarray,
+    meta: dict,
+    summary: dict,
+    manifest: list,
 ) -> None:
     """Distinguish observed ambient conditions, assumed extension and observed radius."""
-    fig, axes = plt.subplots(3, 1, figsize=(8.5, 8.3), layout="constrained")
+    fig, axes = plt.subplots(3, 1, figsize=(8.8, 8.9), layout="constrained")
     end = meta["end_s"] / 3600
+    units = ("°C", "kg/kg")
+    mode = meta.get("environment_mode", "last")
+    grid = summary.get("ambient_grid")
+    path = summary.get("ambient_path")
     for j, (label, color) in enumerate(
         (("环境温度 / °C", "#C44E52"), ("环境水分浓度 / (kg/kg)", COLORS[0]))
     ):
         ax = axes[j]
+        ax.axvspan(0, 4, color="#8A949C", alpha=0.09)
         ax.plot(
             env[:, 0] / 3600,
             env[:, j + 1],
             color=color,
-            lw=1.3,
+            lw=1.4,
             label="附件 1 实测插值",
         )
-        ax.plot(
-            [4, end],
-            [meta["environment_tail"][j]] * 2,
-            "--",
-            color=color,
-            label="4 h 后末值假设",
-        )
+        tail = meta["environment_tail"][j]
+        if mode == "fluct" and grid is not None and grid.size:
+            ax.plot(
+                grid / 3600,
+                path[j],
+                color=color,
+                lw=0.8,
+                alpha=0.9,
+                label=f"AR(1) 随机波动（种子 {meta.get('environment_seed')}）",
+            )
+            ax.axhline(tail, color="#50565C", ls="--", lw=1.0, label="末 30 min 均值")
+            ax.annotate(
+                f"均值 {tail:.6g} {units[j]}",
+                (0.52 * end, tail),
+                xytext=(0, 9),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+                fontsize=8.8,
+                color="#50565C",
+            )
+        else:
+            ax.plot([4, end], [tail] * 2, "--", color=color, label="4 h 后末值假设")
+            ax.annotate(
+                f"延拓 {tail:.6g} {units[j]}",
+                (0.52 * end, tail),
+                xytext=(0, 9),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+                fontsize=8.8,
+                color=color,
+            )
         ax.axvline(4, color="#72777C", lw=0.8, ls=":")
+        ax.text(
+            0.30,
+            0.28,
+            f"实测 {env[0, j + 1]:.4g} $\\to$ {env[-1, j + 1]:.4g} {units[j]}",
+            transform=ax.transAxes,
+            va="top",
+            fontsize=8.6,
+            color="#30363B",
+        )
+        ax.text(
+            0.06,
+            0.06,
+            "灰色带：实测窗口 0–4 h",
+            transform=ax.transAxes,
+            fontsize=8.4,
+            color="#505960",
+        )
         ax.set_xlim(0, end)
         finish_axes(ax, "时间 / h", label)
-        ax.legend(loc="lower right")
+        ax.legend(loc="upper right", fontsize=8.5)
+    r6 = 100 * float(np.interp(6 * 3600, radius[:, 0], radius[:, 1]))
+    r72 = 100 * radius[-1, 1]
+    rend = 100 * float(np.interp(meta["end_s"], radius[:, 0], radius[:, 1]))
     axes[2].plot(
         radius[:, 0] / 3600,
         100 * radius[:, 1],
         color=COLORS[1],
-        lw=1.2,
+        lw=1.3,
         marker="o",
-        markersize=2,
+        markersize=2.2,
         markevery=4,
         label="附件 2 半径",
     )
+    axes[2].axvline(6, color="#8A949C", ls=":", lw=0.8)
     axes[2].axvline(end, color="#50565C", ls="--", lw=1, label="主方案结束时刻")
+    axes[2].annotate(
+        f"6 h：{r6:.4f} cm",
+        (6, r6),
+        xytext=(7, 14),
+        textcoords="offset points",
+        fontsize=8.6,
+        color="#505960",
+    )
+    axes[2].annotate(
+        f"72 h：{r72:.4f} cm",
+        (72, r72),
+        xytext=(-7, 16),
+        textcoords="offset points",
+        ha="right",
+        fontsize=8.6,
+        color="#505960",
+    )
+    axes[2].annotate(
+        f"结束 {end:.4f} h\nR={rend:.4f} cm",
+        (end, rend),
+        xytext=(-8, 10),
+        textcoords="offset points",
+        ha="right",
+        va="bottom",
+        fontsize=8.6,
+        color="#50565C",
+    )
+    axes[2].text(
+        0.42,
+        0.86,
+        f"附件 1：{len(env)} 条 · 60 s；附件 2：{len(radius)} 条 · 1800 s",
+        transform=axes[2].transAxes,
+        fontsize=8.4,
+        color="#505960",
+    )
     axes[2].set_xlim(0, 72)
     finish_axes(axes[2], "时间 / h", "实际半径 / cm")
-    axes[2].legend()
+    axes[2].legend(loc="upper right", fontsize=8.5)
     save_figure(
         fig,
         "01_inputs_and_radius",
@@ -303,7 +405,9 @@ def plot_inputs(
 def plot_history(summary: dict, meta: dict, manifest: list) -> None:
     """Show all-node maximum, center, surface and dry-solid-weighted mean moisture."""
     h = summary["history"]
-    fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.4), layout="constrained")
+    crit = meta["event"]["critical_s"] / 3600
+    endh = meta["end_s"] / 3600
+    fig, axes = plt.subplots(1, 2, figsize=(11.8, 4.7), layout="constrained")
     series = [
         (4, "中心", COLORS[0], "-"),
         (5, "表面", COLORS[3], "-"),
@@ -321,23 +425,56 @@ def plot_history(summary: dict, meta: dict, manifest: list) -> None:
                 label=label,
             )
         ax.axhline(0.15, color="#686D72", ls="--", lw=0.9, label="达标阈值 0.15")
-        ax.axvline(meta["event"]["critical_s"] / 3600, color=COLORS[4], ls="--", lw=1)
-        ax.axvline(meta["end_s"] / 3600, color="#343A40", ls=":", lw=0.8)
+        ax.axvline(crit, color=COLORS[4], ls="--", lw=1)
+        ax.axvline(endh, color="#343A40", ls=":", lw=0.8)
         finish_axes(ax, "时间 / h", "干基含水率 / (kg/kg)")
-    axes[0].set_xlim(0, meta["end_s"] / 3600)
-    axes[0].legend(loc="upper right")
-    axes[1].set_xlim(max(0, meta["end_s"] / 3600 - 12), meta["end_s"] / 3600 + 0.3)
-    axes[1].set_ylim(0.045, 0.24)
-    axes[1].set_title("末期全域达标")
+    axes[0].set_xlim(0, endh)
+    axes[0].legend(loc="upper right", fontsize=8.5)
+    axes[0].annotate(
+        f"阈值 0.15",
+        (0.2, 0.15),
+        xytext=(4, 5),
+        textcoords="offset points",
+        fontsize=8.5,
+        color="#565C62",
+    )
+    axes[1].set_xlim(max(0, endh - 12), endh + 0.35)
+    axes[1].set_ylim(0.045, 0.245)
+    axes[1].set_title("末期全域达标（放大）")
+    axes[1].axvspan(crit, endh, color="#DCE3E8", alpha=0.45, zorder=0)
     axes[1].text(
-        0.04,
+        0.035,
         0.96,
-        f"临界 {meta['event']['critical_s']/3600:.8f} h\n"
-        f"严格结束 {meta['end_s']/3600:.8f} h",
+        f"临界 {crit:.8f} h\n"
+        f"严格结束 {endh:.8f} h\n"
+        f"裕度 {meta['event']['margin_kg_kg']:.3e} kg/kg",
         transform=axes[1].transAxes,
         ha="left",
         va="top",
-        fontsize=9,
+        fontsize=8.7,
+        color="#30363B",
+    )
+    axes[1].scatter([endh], [h[-1, 6]], s=28, color="#32383D", zorder=6)
+    axes[1].annotate(
+        f"最大/中心 {h[-1, 6]:.4f}",
+        (endh, h[-1, 6]),
+        xytext=(-8, 8),
+        textcoords="offset points",
+        ha="right",
+        va="bottom",
+        fontsize=8.4,
+        color="#32383D",
+    )
+    axes[1].scatter([endh], [h[-1, 5]], s=28, color=COLORS[3], zorder=6)
+    axes[1].annotate(
+        f"表面 {h[-1, 5]:.4f}",
+        (endh, h[-1, 5]),
+        xytext=(-8, 9),
+        textcoords="offset points",
+        ha="right",
+        va="bottom",
+        fontsize=8.4,
+        color=COLORS[3],
     )
     save_figure(
         fig,
@@ -356,18 +493,46 @@ def plot_profiles(
     selected = np.flatnonzero(
         (times >= 21600) | np.isclose(times, meta["end_s"], atol=1e-8, rtol=0)
     )
-    fig, ax = plt.subplots(figsize=(8.2, 5.1), layout="constrained")
+    fig, ax = plt.subplots(figsize=(8.6, 5.4), layout="constrained")
     colors = plt.colormaps["viridis"](np.linspace(0.05, 0.9, len(selected)))
     for color, index in zip(colors, selected):
         t = times[index]
         R = float(np.interp(t, radius[:, 0], radius[:, 1]))
         label = f"{t/3600:g} h" if index != selected[-1] else f"结束 {t/3600:.4f} h"
         ax.plot(100 * R * x, states[index, 1], color=color, lw=1.6, label=label)
-        ax.scatter([100 * R], [states[index, 1, -1]], s=15, color=color, zorder=4)
+        ax.scatter([100 * R], [states[index, 1, -1]], s=16, color=color, zorder=4)
+        if index in (selected[0], selected[-1]):
+            ax.annotate(
+                f"{states[index, 1, -1]:.4f}",
+                (100 * R, states[index, 1, -1]),
+                xytext=(6, -3),
+                textcoords="offset points",
+                fontsize=8.4,
+                color=color,
+            )
     ax.axhline(0.15, color="#565C62", ls="--", lw=0.9)
+    ax.annotate(
+        "达标阈值 0.15 kg/kg",
+        (0.15, 0.15),
+        xytext=(4, 4),
+        textcoords="offset points",
+        fontsize=8.5,
+        color="#565C62",
+        bbox=dict(facecolor="white", alpha=0.82, edgecolor="none", pad=1.6),
+    )
+    ax.text(
+        0.02,
+        0.05,
+        f"{len(selected)} 个剖面（6 h 间隔加严格结束）；曲线止于各自真实表面；"
+        f"结束半径 {100 * float(np.interp(meta['end_s'], radius[:, 0], radius[:, 1])):.4f} cm",
+        transform=ax.transAxes,
+        fontsize=8.4,
+        color="#505960",
+        bbox=dict(facecolor="white", alpha=0.82, edgecolor="none", pad=1.8),
+    )
     finish_axes(ax, "距药材中心的实际距离 / cm", "干基含水率 / (kg/kg)")
     ax.set_xlim(left=0)
-    ax.legend(ncol=2, loc="upper right")
+    ax.legend(ncol=2, loc="upper right", fontsize=8.5)
     save_figure(
         fig,
         "03_actual_radius_profiles",
@@ -441,12 +606,43 @@ def plot_heatmap(
     fig.colorbar(mesh, ax=ax, label="干基含水率 / (kg/kg)", pad=0.025)
     ax.set(xlim=(0, meta["end_s"] / 3600), ylim=(0, 2.0))
     finish_axes(ax, "时间 / h", "距药材中心的实际距离 / cm")
+    crit = meta["event"]["critical_s"] / 3600
+    ax.axvline(crit, color="white", ls=":", lw=1.3, zorder=5, path_effects=outline)
+    ax.annotate(
+        f"临界 {crit:.4f} h",
+        (crit, 1.52),
+        xytext=(-5, 0),
+        textcoords="offset points",
+        ha="right",
+        va="center",
+        fontsize=8.8,
+        color="white",
+        path_effects=outline,
+        zorder=6,
+    )
+    ax.text(
+        0.02,
+        0.06,
+        f"{len(times)} 个保存时刻；灰色为域外；白色虚线为 0.15 kg/kg 等值线",
+        transform=ax.transAxes,
+        fontsize=8.4,
+        color="#F2F5F7",
+        bbox=dict(facecolor="#29343D", alpha=0.55, edgecolor="none", pad=2.5),
+    )
     boundary_handle = ax.lines[0]
     threshold_handle = Line2D(
         [], [], color="white", ls="--", lw=1.6, path_effects=outline,
         label="含水率 0.15 kg/kg 等值线",
     )
-    ax.legend(handles=[boundary_handle, threshold_handle], loc="upper right")
+    critical_handle = Line2D(
+        [], [], color="white", ls=":", lw=1.3, path_effects=outline,
+        label=f"临界 {crit:.4f} h",
+    )
+    ax.legend(
+        handles=[boundary_handle, threshold_handle, critical_handle],
+        loc="upper right",
+        fontsize=8.5,
+    )
     save_figure(
         fig,
         "04_moisture_space_time",
@@ -466,7 +662,7 @@ def plot_heatmap(
 def plot_temperature(summary: dict, meta: dict, manifest: list) -> None:
     """Show local versus ambient temperature and diffusion dependence on saved local states."""
     h = summary["history"]
-    fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.3), layout="constrained")
+    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.6), layout="constrained")
     for column, label, color, style in [
         (2, "药材中心", COLORS[0], "-"),
         (3, "药材表面", COLORS[3], "-"),
@@ -476,21 +672,69 @@ def plot_temperature(summary: dict, meta: dict, manifest: list) -> None:
             h[:, 0] / 3600, h[:, column], style, color=color, lw=1.3, label=label
         )
     axes[0].set_xlim(0, 6)
-    finish_axes(axes[0], "时间 / h", "温度 / °C", "初期热传递")
-    axes[0].legend()
-    for T_column, C_column, label, color in [
-        (2, 4, "中心局部扩散系数", COLORS[0]),
-        (3, 5, "表面局部扩散系数", COLORS[3]),
+    axes[0].text(
+        0.97,
+        0.06,
+        f"环境平台 {h[-1, 17]:.4f} °C\n表面峰值 {h[:, 3].max():.3f} °C",
+        transform=axes[0].transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=8.5,
+        color="#505960",
+    )
+    finish_axes(axes[0], "时间 / h", "温度 / °C", "初期热传递（0–6 h）")
+    axes[0].legend(fontsize=8.5)
+    diffusion = {}
+    for T_column, C_column, label, color, marker in [
+        (2, 4, "中心局部扩散系数", COLORS[0], "o"),
+        (3, 5, "表面局部扩散系数", COLORS[3], "s"),
     ]:
         D = (
             4.2e-4
             * np.exp(-0.30 / h[:, C_column])
             * np.exp(-3850 / (h[:, T_column] + 273.15))
         )
+        diffusion[label] = D
         axes[1].semilogy(h[:, 0] / 3600, D, color=color, lw=1.3, label=label)
+        axes[1].scatter(
+            [h[0, 0] / 3600, h[-1, 0] / 3600],
+            [D[0], D[-1]],
+            s=22,
+            color=color,
+            marker=marker,
+            zorder=5,
+        )
+        axes[1].annotate(
+            f"{D[0]:.2e}",
+            (h[0, 0] / 3600, D[0]),
+            xytext=(5, 7),
+            textcoords="offset points",
+            fontsize=8.2,
+            color=color,
+        )
+        axes[1].annotate(
+            f"{D[-1]:.2e}",
+            (h[-1, 0] / 3600, D[-1]),
+            xytext=(-5, 7),
+            textcoords="offset points",
+            ha="right",
+            fontsize=8.2,
+            color=color,
+        )
     axes[1].set_xlim(0, meta["end_s"] / 3600)
+    center_d = diffusion["中心局部扩散系数"]
+    surface_d = diffusion["表面局部扩散系数"]
+    axes[1].text(
+        0.03,
+        0.06,
+        f"末/首扩散系数：中心 {center_d[-1] / center_d[0]:.4f}；"
+        f"表面 {surface_d[-1] / surface_d[0]:.4f}",
+        transform=axes[1].transAxes,
+        fontsize=8.5,
+        color="#505960",
+    )
     finish_axes(axes[1], "时间 / h", "局部扩散系数 / (m²/s)", "局部温湿状态决定扩散")
-    axes[1].legend()
+    axes[1].legend(fontsize=8.5, loc="upper right")
     save_figure(
         fig,
         "05_temperature_and_diffusion",
@@ -530,11 +774,12 @@ def convergence_levels(items: list, report: dict) -> tuple:
 
 
 def plot_convergence(report: dict, meta: dict, manifest: list) -> None:
-    """Show executed levels, the chosen resolution, and adjacent field acceptance."""
-    fig = plt.figure(figsize=(11.8, 7.0), layout="constrained")
-    grid = fig.add_gridspec(3, 2, height_ratios=(3.2, 1.65, 0.55))
+    """Show executed levels, chosen resolution and adjacent acceptance as line charts."""
+    fig = plt.figure(figsize=(11.8, 10.0), layout="constrained")
+    grid = fig.add_gridspec(4, 2, height_ratios=(2.45, 2.45, 1.75, 0.62))
     table_rows, evidence, sources = [], {}, ["review/verification.json"]
     orders = []
+    targets = report["targets"]["thresholds"]
     for column, (key, label, color) in enumerate(
         (("space", "空间", COLORS[0]), ("time", "时间", COLORS[1]))
     ):
@@ -550,46 +795,109 @@ def plot_convergence(report: dict, meta: dict, manifest: list) -> None:
         chosen_index = levels.index(chosen)
         offsets_ms = 1000 * np.abs(critical - critical[-1])
         xpos = np.arange(len(levels))
+        tick_labels = [f"{level:g}" for level in levels]
+        chosen_label = "主方案网格" if key == "space" else "主方案时间倍率"
+
         ax = fig.add_subplot(grid[0, column])
-        ax.bar(xpos, offsets_ms, width=0.32, color=color, alpha=0.72, zorder=3)
-        ax.plot(xpos, offsets_ms, "o", color=color, ms=5, zorder=4)
+        ax.plot(
+            xpos, offsets_ms, "-o", color=color, lw=1.9, ms=6.5, zorder=4,
+            label="相邻级时长差 $|\\Delta t_*|$",
+        )
         ax.scatter(
-            [chosen_index], [offsets_ms[chosen_index]], s=125,
-            facecolors="none", edgecolors="#B4433D", linewidths=1.6,
-            zorder=5, label="主方案网格" if key == "space" else "主方案时间倍率",
+            [chosen_index], [offsets_ms[chosen_index]], s=155,
+            facecolors="none", edgecolors="#B4433D", linewidths=1.8,
+            zorder=5, label=chosen_label,
         )
         for x, value in zip(xpos, offsets_ms):
             ax.annotate(
-                f"{value:.2f}", (x, value), xytext=(0, 8),
-                textcoords="offset points", ha="center", va="bottom", fontsize=10,
+                f"{value:.3f}", (x, value), xytext=(0, -11),
+                textcoords="offset points", ha="center", va="top", fontsize=9,
+                bbox=dict(facecolor="white", alpha=0.72, edgecolor="none", pad=1.2),
             )
-        span = max(float(offsets_ms.max()), 0.01)
-        ax.set_ylim(-0.12 * span, 1.55 * span)
-        ax.set_xlim(-0.5, len(levels) - 0.5)
-        ax.set_xticks(xpos, [f"{level:g}" for level in levels])
+        span = max(float(offsets_ms.max()), 1e-3)
+        ax.set_ylim(-0.12 * span, 1.35 * span)
+        ax.set_xlim(-0.45, len(levels) - 0.55)
+        ax.set_xticks(xpos, tick_labels)
         ax.axhline(0, color="#7C858C", lw=0.7)
         finish_axes(
             ax,
             "径向区间数 N（由粗到细）" if key == "space" else "时间步倍率（由粗到细）",
-            "相对本组最细解的时长绝对差 / ms",
+            "相对最细解的时长差 / ms",
         )
         ax.grid(False, axis="x")
         setting = (
             f"时间倍率 {configs[0]['factor']:g}"
             if key == "space" else f"N={configs[0]['n']}"
         )
-        ax.set_title(f"({'ab'[column]}) {label}加密 · {setting}", loc="left", pad=10)
+        ax.set_title(
+            f"({'ab'[column]}) {label}加密时长差（折线）· {setting}", loc="left", pad=10
+        )
         ax.text(
             0.025, 0.95, f"参考时长 {critical[-1] / 3600:.4f} h",
             transform=ax.transAxes, va="top", fontsize=9, color="#505960",
         )
-        ax.legend(loc="upper right", frameon=False, fontsize=9)
+        ax.legend(loc="upper right", frameon=False, fontsize=8.5)
+
         differences = [item["metrics"]["full"]["C"] for item in items]
         order = (
             float(np.log2(differences[-2] / differences[-1]))
             if len(items) >= 2 else None
         )
         orders.append(f"{label} {order:.2f}" if order is not None else f"{label}未估计")
+
+        ax2 = fig.add_subplot(grid[1, column])
+        xc = np.arange(len(items))
+        field_c = [item["metrics"]["full"]["C"] for item in items]
+        field_t = [item["metrics"]["full"]["T"] for item in items]
+        ax2.semilogy(
+            xc, field_c, "-o", color=COLORS[0], lw=1.9, ms=6.5, label="全场 $\\Delta C$"
+        )
+        ax2.semilogy(
+            xc, field_t, "-s", color=COLORS[3], lw=1.9, ms=6.5, label="全场 $\\Delta T$"
+        )
+        for x, value in zip(xc, field_c):
+            ax2.annotate(
+                f"{value:.2e}", (x, value), xytext=(0, -14),
+                textcoords="offset points", ha="center", va="top",
+                fontsize=8.3, color=COLORS[0],
+                bbox=dict(facecolor="white", alpha=0.72, edgecolor="none", pad=1.2),
+            )
+        for x, value in zip(xc, field_t):
+            ax2.annotate(
+                f"{value:.2e}", (x, value), xytext=(0, -14),
+                textcoords="offset points", ha="center", va="top",
+                fontsize=8.3, color=COLORS[3],
+                bbox=dict(facecolor="white", alpha=0.72, edgecolor="none", pad=1.2),
+            )
+        all_values = field_c + field_t
+        ax2.set_ylim(min(all_values) * 0.15, max(all_values) * 2.1)
+        ax2.text(
+            0.03,
+            0.96,
+            f"目标：$\\Delta C$ ≤ {targets['field_C_kg_kg']:g}，"
+            f"$\\Delta T$ ≤ {targets['field_T_C']:g}（均高于显示范围）",
+            transform=ax2.transAxes,
+            va="top",
+            fontsize=8.2,
+            color="#505960",
+        )
+        pair_labels = [
+            f"{pair[0]:g} $\\to$ {pair[1]:g}"
+            for pair in (item["N" if key == "space" else "factors"] for item in items)
+        ]
+        ax2.set_xticks(xc, pair_labels)
+        ax2.set_xlim(-0.4, len(items) - 0.6)
+        ax2.grid(False, axis="x")
+        finish_axes(ax2, "相邻级别", "全场最大差 / (kg/kg)、°C")
+        order_text = (
+            f"含水率观察阶 {order:.2f}" if order is not None else "含水率观察阶未估计"
+        )
+        ax2.set_title(
+            f"({'cd'[column]}) {label}加密全场差（对数折线）· {order_text}",
+            loc="left", pad=10,
+        )
+        ax2.legend(loc="upper right", fontsize=8.2, ncol=2)
+
         for item in items:
             pair = item["N" if key == "space" else "factors"]
             table_rows.append(
@@ -608,9 +916,9 @@ def plot_convergence(report: dict, meta: dict, manifest: list) -> None:
             "chosen_level": chosen, "field_C_observed_order": order,
         }
 
-    table_ax = fig.add_subplot(grid[1, :])
+    table_ax = fig.add_subplot(grid[2, :])
     table_ax.axis("off")
-    table_ax.set_title("(c) 相邻加密级的全场差与验收", loc="left", fontsize=11, pad=8)
+    table_ax.set_title("(e) 相邻加密级的全场差与验收", loc="left", fontsize=11, pad=8)
     table = table_ax.table(
         cellText=table_rows,
         colLabels=["方向", "相邻级别", "全场 ΔC / (kg/kg)", "全场 ΔT / °C", "|Δt*| / s", "验收"],
@@ -629,18 +937,20 @@ def plot_convergence(report: dict, meta: dict, manifest: list) -> None:
             cell.set_facecolor("#F8FAFB" if row % 2 else "white")
             if table_rows[row - 1][-1] == "未通过" and col in (2, 5):
                 cell.set_text_props(color="#B4433D", weight="bold")
-    targets = report["targets"]["thresholds"]
-    note_ax = fig.add_subplot(grid[2, :])
+    note_ax = fig.add_subplot(grid[3, :])
     note_ax.axis("off")
     note_ax.text(
-        0, 0.92,
+        0, 0.95,
         f"验收：ΔC ≤ {targets['field_C_kg_kg']:g} kg/kg；"
         f"ΔT ≤ {targets['field_T_C']:g} °C；|Δt*| ≤ {targets['event_change_s']:g} s。"
+        f"随机波动情景 ΔT ≤ {targets['fluct_field_T_C']:g} °C。"
         f"含水率观察阶：{'，'.join(orders)}。",
         transform=note_ax.transAxes, va="top", fontsize=8.7, color="#505960",
     )
     note_ax.text(
-        0, 0.26, "最细级作为参考，自差为 0；上述差值均不是连续解误差界或工艺精度保证。",
+        0, 0.22,
+        "上排为时长差折线，中排为全场差对数折线；最细级作为参考，自差为 0。"
+        "上述差值均不是连续解误差界或工艺精度保证。",
         transform=note_ax.transAxes, va="top", fontsize=8.7, color="#505960",
     )
     save_figure(
@@ -660,7 +970,8 @@ def plot_scenarios(report: dict, meta: dict, manifest: list) -> None:
         if case["status"] != "PASS":
             raise RuntimeError("Unverified scenario cannot be plotted as accepted")
         cases[case["name"]] = read_json(OUT / case["path"] / "metadata.json")
-    fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.8), layout="constrained")
+    fig, axes = plt.subplots(1, 2, figsize=(12.0, 5.0), layout="constrained")
+    main_hours = meta["event"]["critical_s"] / 3600
     names = ["appendix3_fixed", "appendix3_shrink", "appendix4_fixed", "main"]
     labels = [LABELS.get(name, "附录 4 · 实测收缩") for name in names]
     values = [cases[name] if name != "main" else meta for name in names]
@@ -674,53 +985,286 @@ def plot_scenarios(report: dict, meta: dict, manifest: list) -> None:
             height=0.56,
             hatch=None if dry else "///",
             alpha=0.85,
+            edgecolor="#3D4652",
+            linewidth=0.6,
         )
         label = f"{hours:.4f} h" if dry else f"{hours:g} h 内未达标"
-        axes[0].text(hours + 0.8, j, label, va="center", fontsize=9)
-    axes[0].set_yticks(range(4), labels)
+        axes[0].text(hours + 0.8, j, label, va="center", fontsize=8.8)
+    axes[0].axvline(main_hours, color=COLORS[0], ls=":", lw=1.1)
+    axes[0].set_yticks(range(4), labels, fontsize=9)
     axes[0].invert_yaxis()
     axes[0].set_xlim(0, 92)
-    finish_axes(axes[0], "临界时长或数据覆盖 / h", "", "相同末值环境下的物性与几何")
-    sensitivity = cases["appendix4_mean30"]
-    for j, (value, label) in enumerate(
-        ((meta, "末次实测值延拓"), (sensitivity, "末 30 min 算术均值延拓"))
-    ):
+    finish_axes(
+        axes[0],
+        "临界时长或数据覆盖 / h",
+        "",
+        "相同初值与数值精度下的物性与几何\n点线：主方案临界时长；斜纹：覆盖内未达标",
+    )
+    sensitivity_series = (
+        (meta, "随机波动 AR(1)（种子 0，主方案）", "随机波动", COLORS[1]),
+        (cases["appendix4_last"], "末次实测值延拓", "末值", COLORS[0]),
+        (cases["appendix4_mean30"], "末 30 min 算术均值延拓", "末段均值", COLORS[4]),
+    )
+    for j, (value, label, short, color) in enumerate(sensitivity_series):
         dry = value["event"] is not None
         hours = value["event"]["critical_s"] / 3600 if dry else 72
-        axes[1].barh(j, hours, color=[COLORS[0], COLORS[4]][j], height=0.45, alpha=0.85)
-        axes[1].text(
-            hours + 0.4,
+        axes[1].barh(
             j,
-            f"{hours:.4f} h" if dry else "72 h 内未达标",
-            va="center",
-            fontsize=9,
+            hours,
+            color=color,
+            height=0.45,
+            alpha=0.85,
+            edgecolor="#3D4652",
+            linewidth=0.6,
         )
-    axes[1].set_yticks([0, 1], ["末值", "末段均值"])
+        if dry:
+            text = f"{hours:.4f} h（{(hours - main_hours) * 60:+.2f} min）"
+        else:
+            text = "72 h 内未达标"
+        axes[1].text(hours + 0.4, j, text, va="center", fontsize=8.8)
+    axes[1].axvline(main_hours, color=COLORS[0], ls=":", lw=1.1)
+    axes[1].set_yticks(
+        range(len(sensitivity_series)), [s[2] for s in sensitivity_series], fontsize=9
+    )
     axes[1].invert_yaxis()
     axes[1].set_xlim(
         0,
         max(
-            (
-                72
-                if sensitivity["event"] is None
-                else sensitivity["event"]["critical_s"] / 3600
-            ),
-            meta["event"]["critical_s"] / 3600,
+            (72 if value["event"] is None else value["event"]["critical_s"] / 3600)
+            for value, _, _, _ in sensitivity_series
         )
-        * 1.3,
+        * 1.38,
     )
     sensitivity_title = "附录 4 实测收缩的环境敏感性"
-    if sensitivity["event"] is not None:
-        change_min = (
+    sensitivity = cases["appendix4_mean30"]
+    if sensitivity["event"] is not None and meta["event"] is not None:
+        last_min = (
+            cases["appendix4_last"]["event"]["critical_s"] - meta["event"]["critical_s"]
+        ) / 60
+        mean_min = (
             sensitivity["event"]["critical_s"] - meta["event"]["critical_s"]
         ) / 60
-        sensitivity_title += f"\n均值延拓变化 {change_min:+.2f} min"
+        sensitivity_title += (
+            f"\n主方案随机波动；末值变化 {last_min:+.2f} min；均值变化 {mean_min:+.2f} min"
+        )
+    stats = meta["fluctuation_stats"]
+    phi = meta["environment_ar1_phi"]
+    sensitivity_title += (
+        f"\n波动参数：$\\sigma_T$={stats['T']['sigma']:.3g} °C，"
+        f"$\\sigma_C$={stats['C']['sigma']:.3g} kg/kg，"
+        f"$\\varphi_T$={phi['T']:.3f}，$\\varphi_C$={phi['C']:.3f}"
+    )
     finish_axes(axes[1], "临界时长 / h", "", sensitivity_title)
     save_figure(
         fig,
         "07_scenarios_and_sensitivity",
         ["review/verification.json", "cases/*/metadata.json"],
-        "4 h 后边界为确定性假设；未达标情景仅报告覆盖内状态，不推断无限烘干时长；效应不普遍可加。",
+        "4 h 后确定性延拓与随机波动情景并列；未达标情景仅报告覆盖内状态，不推断无限烘干时长；效应不普遍可加。",
+        manifest,
+    )
+
+
+def plot_ambient_fluctuation(
+    report: dict, meta: dict, env: np.ndarray, summary: dict, manifest: list
+) -> None:
+    """Compare the realized AR(1) ambient tail with the deterministic extensions."""
+    scenarios = {case["name"]: case for case in report["scenarios"]}
+    if "appendix4_last" not in scenarios or "appendix4_mean30" not in scenarios:
+        raise RuntimeError("Ambient sensitivity scenarios missing from verification")
+    last_case = OUT / scenarios["appendix4_last"]["path"]
+    mean_case = OUT / scenarios["appendix4_mean30"]["path"]
+    last_meta = read_json(last_case / "metadata.json")
+    mean_meta = read_json(mean_case / "metadata.json")
+    with np.load(last_case / "summary.npz", allow_pickle=False) as data:
+        last_history = data["history"]
+    with np.load(mean_case / "summary.npz", allow_pickle=False) as data:
+        mean_history = data["history"]
+    main_history = summary["history"]
+    grid = summary["ambient_grid"]
+    path = summary["ambient_path"]
+    if path.shape != (2, grid.size):
+        raise ValueError("Saved fluctuation path shape mismatch")
+    stats = meta["fluctuation_stats"]
+    phi = meta["environment_ar1_phi"]
+    fig, axes = plt.subplots(2, 2, figsize=(12.4, 8.9), layout="constrained")
+    end = 72.0
+    for j, (label, color, unit, key) in enumerate(
+        (
+            ("环境温度 / °C", "#C44E52", "°C", "T"),
+            ("环境水分浓度 / (kg/kg)", COLORS[0], "kg/kg", "C"),
+        )
+    ):
+        ax = axes[0, j]
+        mean_value = meta["environment_tail"][j]
+        sigma = stats[key]["sigma"] * meta["environment_sigma_scale"]
+        ax.axvspan(0, 4, color="#8A949C", alpha=0.09)
+        ax.fill_between(
+            grid / 3600,
+            mean_value - 2 * sigma,
+            mean_value + 2 * sigma,
+            color=color,
+            alpha=0.14,
+            label="均值 $\\pm 2\\sigma$",
+        )
+        ax.plot(
+            env[:, 0] / 3600, env[:, j + 1], color=color, lw=1.5, label="附件 1 实测"
+        )
+        ax.plot(
+            grid / 3600,
+            path[j],
+            color=color,
+            lw=0.9,
+            alpha=0.9,
+            label=f"随机波动 AR(1)（种子 {meta.get('environment_seed')}，主方案）",
+        )
+        ax.axhline(
+            last_meta["environment_tail"][j],
+            color="#50565C",
+            ls="--",
+            lw=1.0,
+            label="末次实测值延拓",
+        )
+        ax.axhline(
+            mean_meta["environment_tail"][j],
+            color=COLORS[4],
+            ls=":",
+            lw=1.1,
+            label="末 30 min 均值",
+        )
+        ax.axvline(4, color="#72777C", lw=0.8, ls=":")
+        ax.set_xlim(0, end)
+        span_values = np.r_[
+            env[:, j + 1],
+            path[j],
+            last_meta["environment_tail"][j],
+            mean_meta["environment_tail"][j],
+        ]
+        span = float(span_values.max() - span_values.min())
+        ax.set_ylim(span_values.min() - 0.08 * span, span_values.max() + 0.20 * span)
+        finish_axes(ax, "时间 / h", label)
+        ax.legend(loc="lower right", fontsize=7.8)
+        ax.text(
+            0.025,
+            0.96,
+            f"均值 {mean_value:.6g} {unit}\n$\\sigma$={sigma:.3g}，$\\varphi$={phi[key]:.4f}",
+            transform=ax.transAxes,
+            va="top",
+            fontsize=8.6,
+            color="#505960",
+        )
+    configs = [value["identity"]["config"] for value in (meta, last_meta, mean_meta)]
+    grid_values = {(config["n"], config["factor"]) for config in configs}
+    if len(grid_values) == 1:
+        setup = (
+            "主方案与两对照均为同网格、同时间步\n"
+            f"（N={configs[0]['n']}，时间倍率 {configs[0]['factor']:g}）\n"
+            "差异仅来自 4 h 后环境延拓"
+        )
+    else:
+        setup = "\n".join(
+            f"{name}：N={config['n']}，倍率 {config['factor']:g}"
+            for name, config in zip(("波动", "末值", "均值"), configs)
+        )
+    series = (
+        (
+            f"随机波动（主方案，N={configs[0]['n']}，f={configs[0]['factor']:g}）",
+            main_history,
+            COLORS[1],
+        ),
+        (
+            f"末值延拓（N={configs[1]['n']}，f={configs[1]['factor']:g}）",
+            last_history,
+            COLORS[0],
+        ),
+        (
+            f"末段均值（N={configs[2]['n']}，f={configs[2]['factor']:g}）",
+            mean_history,
+            COLORS[4],
+        ),
+    )
+    ax = axes[1, 0]
+    for name, history, color in series:
+        ax.plot(history[:, 0] / 3600, history[:, 6], "-", color=color, lw=1.4, label=name)
+    ax.axhline(0.15, color="#686D72", ls="--", lw=0.9, label="阈值 0.15")
+    for value, color in (
+        (meta, COLORS[1]),
+        (last_meta, COLORS[0]),
+        (mean_meta, COLORS[4]),
+    ):
+        ax.axvline(value["event"]["critical_s"] / 3600, color=color, ls=":", lw=1.0)
+    ax.set_xlim(0, max(v["end_s"] for v in (meta, last_meta, mean_meta)) / 3600)
+    ax.text(
+        0.20,
+        0.50,
+        setup,
+        transform=ax.transAxes,
+        fontsize=8.2,
+        color="#30363B",
+        va="center",
+        bbox=dict(facecolor="white", alpha=0.80, edgecolor="#C9D1D8", pad=3),
+    )
+    finish_axes(ax, "时间 / h", "全域最大含水率 / (kg/kg)", "三种环境延拓的全域最大值")
+    ax.legend(loc="upper right", fontsize=8.0)
+    ax.text(
+        0.03,
+        0.06,
+        "三条曲线在前 45 h 几乎重合；差异集中在事件前约 2 h",
+        transform=ax.transAxes,
+        fontsize=8.4,
+        color="#505960",
+    )
+    ax = axes[1, 1]
+    focus = meta["event"]["critical_s"] / 3600
+    for name, history, color in series:
+        ax.plot(history[:, 0] / 3600, history[:, 6], "-", color=color, lw=1.6, label=name)
+    ax.axhline(0.15, color="#686D72", ls="--", lw=0.9)
+    ax.set_xlim(focus - 1.6, focus + 1.2)
+    ax.set_ylim(0.148, 0.158)
+    for value, color in (
+        (meta, COLORS[1]),
+        (last_meta, COLORS[0]),
+        (mean_meta, COLORS[4]),
+    ):
+        ax.axvline(value["event"]["critical_s"] / 3600, color=color, ls=":", lw=1.0)
+        ax.plot([value["event"]["critical_s"] / 3600], [0.15], "o", color=color, ms=6, zorder=6)
+    ax.text(
+        0.035,
+        0.96,
+        "\n".join(
+            f"{name}：{value['event']['critical_s'] / 3600:.4f} h"
+            for name, value in (
+                ("波动", meta),
+                ("末值", last_meta),
+                ("均值", mean_meta),
+            )
+        ),
+        transform=ax.transAxes,
+        va="top",
+        fontsize=8.4,
+        color="#30363B",
+        bbox=dict(facecolor="white", alpha=0.78, edgecolor="#C9D1D8", pad=3),
+    )
+    finish_axes(
+        ax,
+        "时间 / h",
+        "全域最大含水率 / (kg/kg)",
+        "临界时刻邻域放大（与正式求解同 N、同时间步）",
+    )
+    ax.legend(loc="lower left", fontsize=8.0)
+    save_figure(
+        fig,
+        "08_ambient_fluctuation",
+        [
+            "main/summary.npz",
+            "main/metadata.json",
+            scenarios["appendix4_last"]["path"] + "/summary.npz",
+            scenarios["appendix4_last"]["path"] + "/metadata.json",
+            scenarios["appendix4_mean30"]["path"] + "/summary.npz",
+            scenarios["appendix4_mean30"]["path"] + "/metadata.json",
+            "data/ambient_observed.csv",
+        ],
+        "波动由观测末段去趋势残差估计标准差与滞后一阶自相关，种子固定；"
+        "随机情景热场时间加密阈值放宽到 1e-3 °C，湿场仍 5e-5 kg/kg。",
         manifest,
     )
 
@@ -832,13 +1376,14 @@ def main() -> None:
     PREVIEWS.mkdir(parents=True, exist_ok=True)
     figures = []
     jobs = (
-        (FIGURE_NAMES[0], plot_inputs, (env, radius, meta)),
+        (FIGURE_NAMES[0], plot_inputs, (env, radius, meta, summary)),
         (FIGURE_NAMES[1], plot_history, (summary, meta)),
         (FIGURE_NAMES[2], plot_profiles, (summary, meta, radius)),
         (FIGURE_NAMES[3], plot_heatmap, (report, meta, summary, radius)),
         (FIGURE_NAMES[4], plot_temperature, (summary, meta)),
         (FIGURE_NAMES[5], plot_convergence, (report, meta)),
         (FIGURE_NAMES[6], plot_scenarios, (report, meta)),
+        (FIGURE_NAMES[7], plot_ambient_fluctuation, (report, meta, env, summary)),
     )
     for name, function, arguments in jobs:
         if selected is None or name in selected:
