@@ -532,14 +532,16 @@ def plot_time_histories(
     output_dir: Path,
     dpi: int,
 ) -> Path:
-    """Plot histories at the center, middle radius, and surface."""
+    """Plot histories at five representative radii."""
     figure, axes = plt.subplots(1, 2, figsize=(11.2, 4.5), layout="constrained")
     figure.suptitle("典型位置的温度与含水率时间历程", fontsize=13)
-    colors = ("#355070", ACCENT_COLOR, "#D1495B")
-    markers = ("o", "s", "^")
+
+    selected_radii_cm = (0.0, 0.5, 1.0, 1.5, 2.0)
+    colors = ("#355070", "#6D8AAE", ACCENT_COLOR, "#E08A5B", "#D1495B")
+    markers = ("s", "o", "^", "D", "v")
 
     for radius, color, marker in zip(
-        SELECTED_RADII_CM,
+        selected_radii_cm,
         colors,
         markers,
         strict=True,
@@ -586,7 +588,7 @@ def plot_time_histories(
         handles,
         labels,
         loc="outside lower center",
-        ncol=len(SELECTED_RADII_CM),
+        ncol=len(selected_radii_cm),
         frameon=False,
     )
 
