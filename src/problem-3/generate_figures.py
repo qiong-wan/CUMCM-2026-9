@@ -38,7 +38,8 @@ from pathlib import Path
 import numpy as np
 
 from solve_problem3 import (CASES_DIR, FIGURES_DIR, OUT, ROOT, STOCHASTIC_DIR,
-                            VALIDATION_DIR, Environment, audit, compare, load_case)
+                            VALIDATION_DIR, Environment, audit, case_environment,
+                            compare, load_case)
 
 
 def _import_matplotlib():
@@ -62,6 +63,12 @@ def save_figure(fig, name):
     plt.close(fig)
 
 
+def _case_event_h(name):
+    """Return a case's critical-time estimate in hours."""
+    meta = json.loads((CASES_DIR / f"{name}.json").read_text(encoding="utf-8"))
+    return meta["event"]["estimate_s"] / 3600.0
+
+
 def figures(data, mean_data, report, values):
     """Draw the available figures and return the names that were written.
 
@@ -69,27 +76,79 @@ def figures(data, mean_data, report, values):
     sensitivity case was skipped; ``report`` may be empty when verification was
     skipped.  The three production figures are always produced.
     """
+    from matplotlib.ticker import FormatStrFormatter
     plt = _import_matplotlib()
     plt.rcParams.update({"font.family": "sans-serif", "font.size": 10,
                          "axes.spines.top": False, "axes.spines.right": False,
                          "svg.fonttype": "none"})
     made = []
     t = data["times"] / 3600
-    fig, ax = plt.subplots(1, 2, figsize=(11.4, 4.1), layout="constrained")
-    ax[0].plot(t, data["outputs"][:, 1, 0], label="中心/全域最大值", color="#176c9b")
-    ax[0].plot(data["history"][:, 0] / 3600, data["history"][:, 3], label="体积加权平均", color="#aa662e")
-    ax[0].plot(t, data["outputs"][:, 1, -1], label="表面", color="#247c56")
+    fig, ax = plt.subplots(1, 2, figsize=(12.0, 4.3), layout="constrained")
+    curves = [
+        (t, data["outputs"][:, 1, 0], "#176c9b", "中心/全域最大值"),
+        (data["history"][:, 0] / 3600, data["history"][:, 3], "#aa662e", "体积加权平均"),
+        (t, data["outputs"][:, 1, -1], "#247c56", "表面"),
+    ]
+    for tt, yy, color, label in curves:
+        ax[0].plot(tt, yy, color=color, label=label)
     ax[0].axhline(.15, color="#9f3546", linestyle="--", label="阈值 0.15")
-    ax[0].set(xlabel="自烘干开始的时间 (h)", ylabel="干基含水率 (kg/kg)", title="含水率轨迹")
+
+    def cross_hour(tt, yy, level=0.15):
+        """First crossing time (h) of a curve with the threshold."""
+        idx = np.where((yy - level)[:-1] * (yy - level)[1:] <= 0)[0]
+        if not len(idx):
+            return None
+        i = int(idx[0])
+        return float(tt[i] + (level - yy[i]) / (yy[i + 1] - yy[i]) * (tt[i + 1] - tt[i]))
+
+    for tt, yy, color, label in curves:
+        tc = cross_hour(tt, yy)
+        if tc is None:
+            continue
+        ax[0].plot([tc], [.15], "o", ms=9, mfc="none", mec=color, mew=2, zorder=5)
+        ax[0].vlines(tc, 0.0, .15, colors=color, linestyles="--", linewidth=1, alpha=.85)
+        ax[0].annotate(f"{tc:.2f} h", (tc, 0.0), textcoords="offset points",
+                       xytext=(0, -2), ha="center", va="top", fontsize=7,
+                       color=color, clip_on=False)
+    ax[0].set(xlabel="自烘干开始的时间 (h)", ylabel="干基含水率 (kg/kg)",
+              title="含水率轨迹（标注与 0.15 的交汇时间）")
+    ax[0].set_ylim(bottom=0.0)
     ax[0].legend(fontsize=8)
-    ax[1].plot(t, data["outputs"][:, 1, 0], color="#176c9b", label="末值边界")
+
+    prod_meta = json.loads((CASES_DIR / "production.json").read_text(encoding="utf-8"))
+    blue_label = {"last": "末值边界", "mean30": "末 30 min 均值边界"}.get(
+        prod_meta.get("mode", "last"), f"随机波动（种子 {prod_meta.get('seed')}）")
+    ax[1].plot(t, data["outputs"][:, 1, 0], color="#176c9b", label=blue_label)
     if mean_data is not None:
         ax[1].plot(mean_data["times"] / 3600, mean_data["outputs"][:, 1, 0],
                    color="#a45178", label="末 30 min 均值边界")
     ax[1].axhline(.15, color="#9f3546", linestyle="--")
-    ax[1].set(xlim=(55.5, 58), ylim=(.148, .153), xlabel="自烘干开始的时间 (h)",
-              ylabel="最大含水率 (kg/kg)", title="终点与边界敏感性")
-    ax[1].legend(fontsize=8)
+    # Zoom into the threshold-crossing window; here the two curves separate
+    # (they differ by only ~5e-6 kg/kg over the full endpoint range).
+    xlo, xhi = 57.42, 57.48
+    m2 = (t >= xlo) & (t <= xhi)
+    vals = [data["outputs"][m2, 1, 0]]
+    if mean_data is not None:
+        tm = mean_data["times"] / 3600
+        mm2 = (tm >= xlo) & (tm <= xhi)
+        vals.append(mean_data["outputs"][mm2, 1, 0])
+    allv = np.concatenate(vals)
+    lo, hi = float(allv.min()), float(allv.max())
+    pad = (hi - lo) * 0.12
+    ax[1].set(xlim=(xlo, xhi), ylim=(lo - pad, hi + pad), xlabel="自烘干开始的时间 (h)",
+              ylabel="最大含水率 (kg/kg)", title="终点与边界敏感性（交汇区放大）")
+    ax[1].ticklabel_format(axis="y", style="plain", useOffset=False)
+    ax[1].yaxis.set_major_formatter(FormatStrFormatter("%.6f"))
+    ax[1].legend(fontsize=8, loc="upper left")
+    tc_blue = cross_hour(t, data["outputs"][:, 1, 0])
+    ax[1].plot([tc_blue], [.15], "o", ms=9, mfc="none", mec="#176c9b", mew=2, zorder=5)
+    if mean_data is not None:
+        tc_pink = cross_hour(mean_data["times"] / 3600, mean_data["outputs"][:, 1, 0])
+        ax[1].plot([tc_pink], [.15], "o", ms=9, mfc="none", mec="#a45178", mew=2, zorder=5)
+        ax[1].annotate("交汇时间差 %.2f s" % (abs(tc_pink - tc_blue) * 3600),
+                       xy=(0.5 * (tc_blue + tc_pink), .15), xytext=(0.05, 0.14),
+                       textcoords="axes fraction", fontsize=8, color="#333333",
+                       arrowprops=dict(arrowstyle="->", color="#333333"))
     for a in ax:
         a.grid(alpha=.2)
     save_figure(fig, "drying_history")
@@ -112,20 +171,49 @@ def figures(data, mean_data, report, values):
     save_figure(fig, "radial_profiles")
     made.append("radial_profiles")
 
-    fig, ax = plt.subplots(1, 2, figsize=(11.4, 4.1), layout="constrained")
-    selected = t <= 8
-    ax[0].plot(t[selected], data["outputs"][selected, 0, 0], label="材料中心", color="#176c9b")
-    ax[0].plot(t[selected], data["outputs"][selected, 0, -1], label="材料表面", color="#247c56")
-    boundary_t = np.r_[values[:, 0], 8 * 3600]
-    ax[0].plot(boundary_t / 3600, np.r_[values[:, 1], values[-1, 1]], label="空气（末值延拓）", color="#aa662e", linewidth=1)
-    ax[0].set(xlabel="时间 (h)", ylabel="温度 (°C)", title="温度全程参与求解")
-    ax[0].legend(fontsize=8)
-    ax[1].plot(values[:, 0] / 3600, values[:, 2], color="#444444", label="实测空气水分浓度")
-    for mode, color, name in [("last", "#176c9b", "末值"), ("mean30", "#a45178", "末 30 min 均值")]:
-        env = Environment(values, mode)
-        ax[1].plot([4, 8], [env.tail[1], env.tail[1]], color=color, label=f"延拓：{name}")
-    ax[1].set(xlabel="时间 (h)", ylabel="空气水分浓度 (kg/kg)", title="观测区间保持不变")
-    ax[1].legend(fontsize=8)
+    prod_meta = json.loads((CASES_DIR / "production.json").read_text(encoding="utf-8"))
+    env = case_environment(values, prod_meta)
+    grid = np.arange(0.0, 8 * 3600 + 60, 60.0)
+    ambient = np.array([env(s) for s in grid])
+    tail_mean = Environment(values, "mean30").tail
+    tail_last = Environment(values, "last").tail
+    mode_name = {"last": "末值", "mean30": "末 30 min 均值"}.get(
+        prod_meta.get("mode", "last"), f"随机波动（种子 {prod_meta.get('seed')}）")
+
+    fig, ax = plt.subplots(1, 2, figsize=(12.4, 4.5), layout="constrained")
+    sel = t <= 8
+    ax[0].plot(t[sel], data["outputs"][sel, 0, 0], color="#176c9b", label="材料中心（求解）")
+    ax[0].plot(t[sel], data["outputs"][sel, 0, -1], color="#247c56", label="材料表面（求解）")
+    ax[0].plot(grid / 3600, ambient[:, 0], color="#aa662e", linewidth=1.3,
+               label=f"空气边界：{mode_name}")
+    ax[0].axhline(tail_mean[0], color="#aa662e", linestyle="--", linewidth=1,
+                  label="末 30 min 均值（随机边界均值）")
+    ax[0].axhline(tail_last[0], color="#9f3546", linestyle=":", linewidth=1,
+                  label="末值延拓（仅对照，未用于求解）")
+    ax[0].set(xlabel="自烘干开始的时间 (h)", ylabel="温度 (°C)",
+              title="温度：材料与空气边界")
+    ax[0].legend(fontsize=8, loc="lower right")
+    ax[0].text(0.03, 0.12,
+               "0–4 h：附件 1 实测分段线性插值\n4 h 后：AR(1) 随机波动边界\n"
+               "（种子 0，均值 = 末 30 min 均值）",
+               transform=ax[0].transAxes, fontsize=8, color="#333333",
+               bbox=dict(boxstyle="round", fc="#f7f7f7", ec="#cccccc"))
+
+    ax[1].plot(values[:, 0] / 3600, values[:, 2], color="#444444",
+               label="实测空气水分浓度（0–4 h）")
+    ax[1].plot(grid / 3600, ambient[:, 1], color="#aa662e", linewidth=1.3,
+               label=f"空气边界：{mode_name}")
+    ax[1].axhline(tail_mean[1], color="#aa662e", linestyle="--", linewidth=1,
+                  label="末 30 min 均值（随机边界均值）")
+    ax[1].axhline(tail_last[1], color="#9f3546", linestyle=":", linewidth=1,
+                  label="末值延拓（仅对照，未用于求解）")
+    ax[1].set(xlabel="自烘干开始的时间 (h)", ylabel="空气水分浓度 (kg/kg)",
+              title="空气水分浓度边界")
+    ax[1].legend(fontsize=8, loc="lower right")
+    ax[1].text(0.03, 0.12,
+               "观测区间保持不变；\n随机波动均值 = 末 30 min 均值",
+               transform=ax[1].transAxes, fontsize=8, color="#333333",
+               bbox=dict(boxstyle="round", fc="#f7f7f7", ec="#cccccc"))
     for a in ax:
         a.axvline(4, color="#888888", linestyle=":")
         a.grid(alpha=.2)
@@ -134,34 +222,71 @@ def figures(data, mean_data, report, values):
 
     spatial, temporal = report.get("space_convergence"), report.get("time_convergence")
     if spatial and temporal:
-        fig, ax = plt.subplots(1, 2, figsize=(11.8, 4.2), layout="constrained")
-        Ns = np.array([v["fine_N"] for v in spatial], dtype=float)
+        fig, ax = plt.subplots(1, 2, figsize=(13.2, 5.0), layout="constrained")
+        # --- spatial: critical time as slim bars (primary axis); the adjacent
+        #     pair difference as points at the pair midpoints (secondary axis) ---
+        mesh_N = [400, 800, 1600, 3200, 6400, 12800]
+        xpos = np.arange(len(mesh_N), dtype=float)
+        xmid = xpos[:-1] + 0.5
+        tstar = np.array([_case_event_h(f"space{n}") for n in mesh_N])
         dts = np.array([abs(v["event_difference_s"]) for v in spatial])
-        order = float(-np.polyfit(np.log(Ns), np.log(dts), 1)[0])
-        ax[0].loglog(Ns, dts, "o-", color="#176c9b")
-        ax[0].set(xlabel="径向区间数 N", ylabel="相邻网格的临界时长差 |Δt*| (s)",
-                  title=f"空间网格收敛（实测阶 ≈ {order:.2f}）")
-        ax[0].grid(which="both", alpha=.2)
-        # Temporal refinement at three levels: 1x, 0.5x (production), 0.25x.
+        order = float(np.log2(dts[-2] / dts[-1]))
+        ax0 = ax[0]
+        base = float(tstar.min()) - 0.005
+        ax0.bar(xpos, tstar - base, bottom=base, width=0.4, color="#aa662e", alpha=.85)
+        for x, y in zip(xpos, tstar):
+            ax0.annotate(f"{y:.4f}", (x, y), textcoords="offset points",
+                         xytext=(0, 4), ha="center", fontsize=8, color="#7a4a1e")
+        ax0.set_ylim(base, float(tstar.max()) + 0.022)
+        ax0.set_xticks(xpos)
+        ax0.set_xticklabels([str(n) for n in mesh_N], fontsize=8)
+        ax0.set(xlabel="径向区间数 N（差值点位于相邻网格对之间）",
+                ylabel="临界时间 t* (h)",
+                title=f"空间网格收敛（实测阶 p≈{order:.2f}，时间步固定 30 s）")
+        ax0.grid(axis="y", which="both", alpha=.2)
+        ax0b = ax0.twinx()
+        ax0b.plot(xmid, dts, "o-", color="#176c9b")
+        for i, (x, y) in enumerate(zip(xmid, dts)):
+            last = i == len(xmid) - 1
+            ax0b.annotate(f"{y:.3f} s", (x, y), textcoords="offset points",
+                          xytext=(15, 6) if last else (8, 0),
+                          ha="right" if last else "left",
+                          va="bottom" if last else "center",
+                          fontsize=8, color="#176c9b")
+        ax0b.set_yscale("log")
+        ax0b.set_ylabel("相邻网格对的临界时长差 |Δt*| (s)", color="#176c9b")
+        ax0b.tick_params(axis="y", colors="#176c9b")
+        ax0.annotate("交付采用 N=12800", xy=(xpos[-1], tstar[-1]),
+                     xytext=(0.60, 0.84), textcoords="axes fraction",
+                     color="#c23b34", fontsize=9,
+                     arrowprops=dict(arrowstyle="->", color="#c23b34"))
+        # --- temporal: relative field difference vs actual internal time step ---
+        steps = np.array([30.0, 15.0, 7.5])
         factors = [1.0, 0.5, 0.25]
         names = ["space12800", "production", "time12800quarter"]
-        diffs = []
-        for name in names:
-            if name == "time12800quarter":
-                diffs.append(0.0)
-            else:
-                diffs.append(compare(name, "time12800quarter")["all_saved_fields"]["C_max_kg_kg"])
-        ax[1].plot(factors, [d * 1e6 for d in diffs], "o-", color="#a45178")
+        diffs = np.array([
+            0.0 if name == "time12800quarter"
+            else compare(name, "time12800quarter")["all_saved_fields"]["C_max_kg_kg"]
+            for name in names]) * 1e6
+        ax[1].plot(steps, diffs, "o-", color="#a45178", label="相对 7.5 s 解的全场最大差")
+        for x, y in zip(steps, diffs):
+            ax[1].annotate(f"{y:.3f}", (x, y), textcoords="offset points",
+                           xytext=(0, 9), ha="center", fontsize=8, color="#a45178")
+        ax[1].plot([steps[1]], [diffs[1]], "o", ms=12, mfc="none", mec="#c23b34", mew=2)
+        ax[1].annotate("交付采用 15 s（0.5×）", xy=(steps[1], diffs[1]),
+                       xytext=(0.55, 0.70), textcoords="axes fraction",
+                       color="#c23b34", fontsize=9,
+                       arrowprops=dict(arrowstyle="->", color="#c23b34"))
         ax[1].invert_xaxis()
-        ax[1].set_xticks(factors)
-        ax[1].set_xticklabels(["1×", "0.5×\n(实际采用)", "0.25×"])
-        ax[1].set(xlabel="时间步倍率",
-                  ylabel=r"相对 0.25× 解的全场含水率最大差 ($10^{-6}$ kg/kg)",
-                  title="时间步收敛（三个倍率）")
-        for f, d in zip(factors, diffs):
-            ax[1].annotate(f"{d * 1e6:.3f}", (f, d * 1e6), textcoords="offset points",
-                           xytext=(0, 7), ha="center", fontsize=8)
+        ax[1].set_xticks(steps)
+        ax[1].set_xticklabels([f"{s:g} s\n({f:g}×)" for s, f in zip(steps, factors)])
+        ax[1].set(xlabel="内部时间步上限（交付间隔 60 s）",
+                  ylabel=r"相对 7.5 s 解的全场含水率最大差 ($10^{-6}$ kg/kg)",
+                  title="时间步收敛（固定 N=12800，三个时间步）")
         ax[1].grid(alpha=.2)
+        ax[1].text(0.03, 0.72, "网格固定为 N=12800；\n以最细 7.5 s 解为参考",
+                   transform=ax[1].transAxes, fontsize=8, color="#444444",
+                   bbox=dict(boxstyle="round", fc="#f5f5f5", ec="#cccccc"))
         save_figure(fig, "convergence")
         made.append("convergence")
     return made
@@ -241,7 +366,7 @@ def moisture_space_time(data):
     cmap = LinearSegmentedColormap.from_list("dry_wet", [
         (0.0, "#7f0000"), (turn * 0.45, "#d73027"), (turn * 0.80, "#f46d43"),
         (turn, "#fdae61"), (min(turn + 0.008, 1.0), "#c6dbef"),
-        (turn + (1 - turn) * 0.10, "#9ecae1"), (turn + (1 - turn) * 0.28, "#6baed6"),
+        (turn + (1 - turn) * 0.12, "#9ecae1"), (turn + (1 - turn) * 0.24, "#6baed6"),
         (turn + (1 - turn) * 0.50, "#3182bd"), (turn + (1 - turn) * 0.75, "#08519c"),
         (1.0, "#08306b")])
     norm = LogNorm(vmin=lo, vmax=hi)
@@ -363,14 +488,22 @@ def solver_diagnostics(report):
     Nvals = np.array([400, 800, 1600, 3200, 6400, 12800], dtype=float)
     RT = np.array([b["delivery_abs_max_RT_RC_symT_symC"][0] for b in bc])
     RC = np.array([b["delivery_abs_max_RT_RC_symT_symC"][1] for b in bc])
+    rt_tol = report.get("production_boundaries", {}).get("rt_tolerance_W_m2", 1e-3)
+    rc_tol = 1e-9
     ax[1].loglog(Nvals, RT, "o-", color="#176c9b", label="热 Robin 残差 (W/m²)")
     ax[1].loglog(Nvals, RC, "s-", color="#247c56", label="湿 Robin 残差 [(kg/kg)·m/s]")
-    ax[1].axhline(1e-3, color="#176c9b", linestyle=":", linewidth=1)
-    ax[1].axhline(1e-9, color="#247c56", linestyle=":", linewidth=1)
+    ax[1].axhline(rt_tol, color="#176c9b", linestyle=":", linewidth=1)
+    ax[1].axhline(rc_tol, color="#247c56", linestyle=":", linewidth=1)
+    ax[1].text(Nvals[0] * 1.05, rt_tol * 1.3,
+               f"热 Robin 验收阈值 $10^{{{int(round(np.log10(rt_tol)))}}}$",
+               color="#176c9b", fontsize=8, va="bottom")
+    ax[1].text(Nvals[-1] * 0.98, rc_tol * 1.3,
+               f"湿 Robin 验收阈值 $10^{{{int(round(np.log10(rc_tol)))}}}$",
+               color="#247c56", fontsize=8, va="bottom", ha="right")
     order = float(-np.polyfit(np.log(Nvals), np.log(RT), 1)[0])
     ax[1].annotate(f"热 Robin 实测阶 ≈ {order:.2f}", xy=(Nvals[-1], RT[-1]),
-                   xytext=(Nvals[0] * 1.1, RT[-1] * 6), fontsize=9, color="#176c9b",
-                   arrowprops=dict(arrowstyle="->", color="#176c9b"))
+                   xytext=(0.42, 0.60), textcoords="axes fraction", fontsize=9,
+                   color="#176c9b", arrowprops=dict(arrowstyle="->", color="#176c9b"))
     ax[1].set(xlabel="径向区间数 N", ylabel="边界重构残差（对数）", title="边界重构收敛")
     ax[1].legend(fontsize=8)
     ax[1].grid(which="both", alpha=.2)

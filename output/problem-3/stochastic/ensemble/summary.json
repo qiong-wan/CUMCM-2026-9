@@ -21,7 +21,7 @@
     "critical_time_s": 207585.7209777832,
     "critical_time_h": 57.66270027160645
   },
-  "wall_s": 958.295503100002,
+  "wall_s": 947.6608234999876,
   "tail_model": "tail_model.json",
   "mean_minus_reference_h": -0.0005167007446331695
 }
